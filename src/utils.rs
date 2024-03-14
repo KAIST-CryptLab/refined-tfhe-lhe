@@ -1,4 +1,3 @@
-// use tfhe::core_crypto::prelude::{*, polynomial_algorithms::*};
 use tfhe::core_crypto::prelude::*;
 
 pub fn get_val_and_bit_err<Scalar, C>(
@@ -77,11 +76,9 @@ macro_rules! izip {
     ( $first:expr, $($rest:expr),+ $(,)?) => {
         {
             #[allow(unused_imports)]
-            // use $crate::core_crypto::commons::utils::ZipChecked;
             use tfhe::core_crypto::commons::utils::ZipChecked;
             ::core::iter::IntoIterator::into_iter($first)
                 $(.zip_checked($rest))*
-                // .map($crate::core_crypto::commons::utils::izip!(@ __closure @ ($first, $($rest),*)))
                 .map($crate::utils::izip!(@ __closure @ ($first, $($rest),*)))
         }
     };

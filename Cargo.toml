@@ -11,9 +11,13 @@ rand = { version = "*" }
 aligned-vec = { version = "0.5.0" }
 
 [[test]]
+name = "rescale"
+harness = false
+
+[[test]]
 name = "fourier_poly_mult"
 harness = false
 
 [[test]]
-name = "fourier_poly_mult_128"
+name = "fourier_poly_mult128"
 harness = false
