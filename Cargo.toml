@@ -9,6 +9,7 @@ edition = "2021"
 tfhe = { version = "0.5.3", features = ["boolean", "shortint", "x86_64-unix"] }
 rand = { version = "*" }
 aligned-vec = { version = "0.5.0" }
+rayon = { version = "*", optional = true }
 
 [[test]]
 name = "rescale"
@@ -21,3 +22,16 @@ harness = false
 [[test]]
 name = "fourier_poly_mult128"
 harness = false
+
+[[test]]
+name = "trace"
+harness = false
+
+[[test]]
+name = "trace128"
+harness = false
+
+[features]
+default = ["monothread"]
+monothread = []
+multithread = ["rayon"]
