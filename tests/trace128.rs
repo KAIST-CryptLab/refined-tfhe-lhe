@@ -79,4 +79,33 @@ fn main() {
     let decoded = decrypted_u128.wrapping_add(rounding) >> log_delta;
 
     println!("Decoded: {decoded}, Err bits: {err_bits} bits");
+
+
+    // Rescale after trace
+    let mut glwe_secret_key_rs = GlweSecretKey::new_empty_key(0u64, param.glwe_dimension, param.polynomial_size);
+    for (src, dst) in glwe_secret_key.as_ref().iter().zip(glwe_secret_key_rs.as_mut().iter_mut()) {
+        *dst = (*src) as u64;
+    }
+
+    let now = Instant::now();
+    let out = trace128_and_rescale_to_native(ciphertext.as_view(), &all_ksk);
+    let time_trace_and_rs = now.elapsed();
+    println!("\nTrace and RS time: {} ms", time_trace_and_rs.as_micros() as f64 / 1000f64);
+
+    let mut dec = PlaintextList::new(0u64, PlaintextCount(param.polynomial_size.0));
+    decrypt_glwe_ciphertext(&glwe_secret_key_rs, &out, &mut dec);
+
+    let correct_val = *pt.get(0).0 as u64;
+    let decrypted_u64 = *dec.get(0).0;
+    let err = {
+        let d0 = correct_val.wrapping_sub(decrypted_u64);
+        let d1 = decrypted_u64.wrapping_sub(correct_val);
+        std::cmp::min(d0, d1)
+    };
+    let err_bits = if err == 0 {0} else {u64::BITS - err.leading_zeros()};
+    let log_delta = u64::BITS as usize - modulus_bit;
+    let rounding = decrypted_u64 & (1 << (log_delta - 1));
+    let decoded = decrypted_u64.wrapping_add(rounding) >> log_delta;
+
+    println!("Decoded: {decoded}, Err bits: {err_bits} bits");
 }

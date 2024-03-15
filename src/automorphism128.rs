@@ -4,7 +4,7 @@ use tfhe::core_crypto::{
     prelude::*,
     fft_impl::fft128,
 };
-use crate::utils::*;
+use crate::{glwe_ciphertext_rescale_from_non_native_power_of_two_to_native, utils::*};
 
 // The following codes generalize rlweExpand
 // from https://github.com/KULeuven-COSIC/SortingHat
@@ -77,10 +77,10 @@ impl Automorph128Key<ABox<[f64]>> {
     /// Fill this object with the appropriate key switching key
     /// that is used for the automorphism operation
     /// where after_key is {S_i(X)} and before_key is computed as {S_i(X^k)}.
-    pub fn fill_with_automorph_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
+    pub fn fill_with_automorph_key<G: ByteRandomGenerator>(
         &mut self,
-        before_key: &mut GlweSecretKeyOwned<Scalar>,
-        after_key: &GlweSecretKeyOwned<Scalar>,
+        before_key: &mut GlweSecretKeyOwned<u128>,
+        after_key: &GlweSecretKeyOwned<u128>,
         k: usize,
         noise_parameters: impl DispersionParameter,
         generator: &mut EncryptionRandomGenerator<G>,
@@ -91,7 +91,7 @@ impl Automorph128Key<ABox<[f64]>> {
         debug_assert!(self.polynomial_size == after_key.polynomial_size());
 
         let mut before_poly_list = PolynomialList::new(
-            Scalar::ZERO,
+            0u128,
             self.polynomial_size,
             PolynomialCount(self.glwe_dimension.0),
         );
@@ -109,10 +109,10 @@ impl Automorph128Key<ABox<[f64]>> {
 
     /// Fill this object with the appropriate keyswitching key
     /// that transforms ciphertexts under before_key to ciphertexts under after_key.
-    pub fn fill_with_keyswitch_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
+    pub fn fill_with_keyswitch_key<G: ByteRandomGenerator>(
         &mut self,
-        before_key: &GlweSecretKeyOwned<Scalar>,
-        after_key: &GlweSecretKeyOwned<Scalar>,
+        before_key: &GlweSecretKeyOwned<u128>,
+        after_key: &GlweSecretKeyOwned<u128>,
         noise_parameters: impl DispersionParameter,
         generator: &mut EncryptionRandomGenerator<G>
     ) {
@@ -129,7 +129,7 @@ impl Automorph128Key<ABox<[f64]>> {
         let ciphertext_modulus = CiphertextModulus::new_native();
 
         let before_key_poly_list = before_key.as_polynomial_list();
-        let mut standard_ksks = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, decomp_base_log, decomp_level_count, ciphertext_modulus);
+        let mut standard_ksks = GgswCiphertext::new(0u128, glwe_size, polynomial_size, decomp_base_log, decomp_level_count, ciphertext_modulus);
         for (idx, mut glwe) in standard_ksks.as_mut_glwe_list().iter_mut().enumerate() {
             let row = idx % glwe_size.0;
             let level = idx / glwe_size.0 + 1;
@@ -137,8 +137,8 @@ impl Automorph128Key<ABox<[f64]>> {
             if row < glwe_size.0 - 1 {
                 let sk_poly = before_key_poly_list.get(row);
                 let pt = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                    sk_poly.as_ref().get(i).unwrap().wrapping_neg() << (Scalar::BITS - level * decomp_base_log.0)
-                }).collect::<Vec<Scalar>>());
+                    sk_poly.as_ref().get(i).unwrap().wrapping_neg() << (u128::BITS as usize - level * decomp_base_log.0)
+                }).collect::<Vec<u128>>());
                 encrypt_glwe_ciphertext(&after_key, &mut glwe, &pt, noise_parameters, generator);
             }
         }
@@ -148,10 +148,10 @@ impl Automorph128Key<ABox<[f64]>> {
         self.ksks.fill_with_forward_fourier(&standard_ksks, fft)
     }
 
-    pub fn keyswitch_ciphertext<Scalar: UnsignedTorus + Sync + Send>(
+    pub fn keyswitch_ciphertext(
         &self,
-        mut after: GlweCiphertextMutView<Scalar>,
-        before: GlweCiphertextView<Scalar>,
+        mut after: GlweCiphertextMutView<u128>,
+        before: GlweCiphertextView<u128>,
     ) {
         let glwe_size = self.glwe_dimension.to_glwe_size();
         let polynomial_size = self.polynomial_size;
@@ -159,7 +159,7 @@ impl Automorph128Key<ABox<[f64]>> {
         let fft = Fft128::new(polynomial_size);
         let fft = fft.as_view();
 
-        after.as_mut().fill(Scalar::ZERO);
+        after.as_mut().fill(0u128);
         after.get_mut_body().as_mut().clone_from_slice(before.get_body().as_ref());
 
         let mut buffers = ComputationBuffers::new();
@@ -181,12 +181,12 @@ impl Automorph128Key<ABox<[f64]>> {
         );
     }
 
-    pub fn auto<Scalar: UnsignedTorus + Sync + Send>(
+    pub fn auto(
         &self,
-        after: GlweCiphertextMutView<Scalar>,
-        before: GlweCiphertextView<Scalar>,
+        after: GlweCiphertextMutView<u128>,
+        before: GlweCiphertextView<u128>,
     ) {
-        let mut before_power = GlweCiphertextOwned::new(Scalar::ZERO, before.glwe_size(), before.polynomial_size(), before.ciphertext_modulus());
+        let mut before_power = GlweCiphertextOwned::new(0u128, before.glwe_size(), before.polynomial_size(), before.ciphertext_modulus());
         for (mut poly_power, poly) in before_power.as_mut_polynomial_list().iter_mut().zip(before.as_polynomial_list().iter()) {
             poly_power.as_mut().clone_from_slice(eval_x_k(poly, self.auto_k).as_ref());
         }
@@ -195,17 +195,13 @@ impl Automorph128Key<ABox<[f64]>> {
     }
 }
 
-pub fn gen_all_auto128_keys<Scalar, G>(
+pub fn gen_all_auto128_keys<G: ByteRandomGenerator>(
     decomp_base_log: DecompositionBaseLog,
     decomp_level: DecompositionLevelCount,
-    glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
+    glwe_secret_key: &GlweSecretKeyOwned<u128>,
     noise_parameters: impl DispersionParameter,
     generator: &mut EncryptionRandomGenerator<G>,
-) -> HashMap<usize, Automorph128Key<ABox<[f64]>>>
-where
-    Scalar: UnsignedTorus + Sync + Send,
-    G: ByteRandomGenerator,
-{
+) -> HashMap<usize, Automorph128Key<ABox<[f64]>>> {
     let glwe_dimension = glwe_secret_key.glwe_dimension();
     let polynomial_size = glwe_secret_key.polynomial_size();
 
@@ -222,13 +218,13 @@ where
     hm
 }
 
-pub fn trace128<Scalar: UnsignedTorus + Sync + Send>(
-    glwe_in: GlweCiphertextView<Scalar>,
+pub fn trace128(
+    glwe_in: GlweCiphertextView<u128>,
     auto_key_map: &HashMap<usize, Automorph128Key<ABox<[f64]>>>,
-) -> GlweCiphertextOwned<Scalar> {
+) -> GlweCiphertextOwned<u128> {
     let n = glwe_in.polynomial_size().0;
-    let mut buf = GlweCiphertextOwned::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
-    let mut out: GlweCiphertext<Vec<Scalar>> = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
+    let mut buf = GlweCiphertext::new(0u128, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
+    let mut out = GlweCiphertext::new(0u128, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
     out.as_mut().clone_from_slice(glwe_in.as_ref());
 
     for i in 1..=n.ilog2() {
@@ -237,6 +233,27 @@ pub fn trace128<Scalar: UnsignedTorus + Sync + Send>(
         auto_key.auto(buf.as_mut_view(), out.as_view());
         glwe_ciphertext_add_assign(&mut out, &buf);
     }
+
+    out
+}
+
+pub fn trace128_and_rescale_to_native<Scalar: UnsignedInteger + CastFrom<u128>>(
+    glwe_in: GlweCiphertextView<u128>,
+    auto_key_map: &HashMap<usize, Automorph128Key<ABox<[f64]>>>,
+) -> GlweCiphertextOwned<Scalar> {
+    assert!(
+        glwe_in.ciphertext_modulus().is_non_native_power_of_two(),
+        "input ciphertext modulus is not non-native power_of_two",
+    );
+
+    assert!(
+        Scalar::BITS <= 64,
+        "output ciphertext modulus should be <= 2^64",
+    );
+
+    let trace = trace128(glwe_in, auto_key_map);
+    let mut out = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), CiphertextModulus::<Scalar>::new_native());
+    glwe_ciphertext_rescale_from_non_native_power_of_two_to_native(&trace, &mut out);
 
     out
 }
