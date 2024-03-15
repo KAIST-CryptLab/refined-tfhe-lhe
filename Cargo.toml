@@ -31,6 +31,10 @@ harness = false
 name = "trace128"
 harness = false
 
+[[test]]
+name = "pksk"
+harness = false
+
 [features]
 default = ["monothread"]
 monothread = []
