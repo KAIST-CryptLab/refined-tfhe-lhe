@@ -12,10 +12,6 @@ aligned-vec = { version = "0.5.0" }
 rayon = { version = "*", optional = true }
 
 [[test]]
-name = "rescale"
-harness = false
-
-[[test]]
 name = "fourier_poly_mult"
 harness = false
 
@@ -28,7 +24,7 @@ name = "trace"
 harness = false
 
 [[test]]
-name = "trace128"
+name = "trace_and_rescale"
 harness = false
 
 [[test]]

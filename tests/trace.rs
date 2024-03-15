@@ -5,7 +5,7 @@ use tfhe::{
     shortint::prelude::*
 };
 
-use hom_trace::{keygen::*, automorphism::*};
+use hom_trace::automorphism::*;
 
 fn main() {
     // Generator and buffer setting
@@ -15,29 +15,18 @@ fn main() {
     let mut secret_generator = SecretRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed());
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
-    let mut computation_buffers = ComputationBuffers::new();
-
     let param = PARAM_MESSAGE_2_CARRY_2;
-    let subs_decomp_base_log = DecompositionBaseLog(15);
-    let subs_decomp_level = DecompositionLevelCount(2);
-
-    // Keygen
-    let (
-        _lwe_secret_key,
-        glwe_secret_key,
-        _lwe_secret_key_after_ks,
-        _fourier_bsk,
-        _ksk,
-    ) = keygen_basic(
-        &param,
-        &mut secret_generator,
-        &mut encryption_generator,
-        &mut computation_buffers,
+    let auto_base_log = DecompositionBaseLog(15);
+    let auto_level = DecompositionLevelCount(2);
+    println!("PolynomialSize: {}, GlweDim: {}, AutoBaseLog: {}, AutoLevel: {}",
+        param.polynomial_size.0, param.glwe_dimension.0, auto_base_log.0, auto_level.0,
     );
 
-    let all_ksk = gen_all_auto_keys(
-        subs_decomp_base_log,
-        subs_decomp_level,
+    // Keygen
+    let glwe_secret_key = GlweSecretKey::generate_new_binary(param.glwe_dimension, param.polynomial_size, &mut secret_generator);
+    let auto_keys = gen_all_auto_keys(
+        auto_base_log,
+        auto_level,
         &glwe_secret_key,
         param.glwe_modular_std_dev,
         &mut encryption_generator,
@@ -58,7 +47,7 @@ fn main() {
     encrypt_glwe_ciphertext(&glwe_secret_key, &mut ciphertext, &pt, param.glwe_modular_std_dev, &mut encryption_generator);
 
     let now = Instant::now();
-    let out = trace(ciphertext.as_view(), &all_ksk);
+    let out = trace(ciphertext.as_view(), &auto_keys);
     let time_trace = now.elapsed();
     println!("Trace time: {} ms", time_trace.as_micros() as f64 / 1000f64);
 
