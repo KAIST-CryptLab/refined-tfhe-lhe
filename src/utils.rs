@@ -64,7 +64,7 @@ pub fn glwe_ciphertext_monic_monomial_div_assign<Scalar, ContMut>(
     }
 }
 
-pub fn glwe_clone_from<Scalar: UnsignedInteger>(mut dst: GlweCiphertextMutView<Scalar>, src: GlweCiphertextView<Scalar>) {
+pub fn glwe_ciphertext_clone_from<Scalar: UnsignedInteger>(mut dst: GlweCiphertextMutView<Scalar>, src: GlweCiphertextView<Scalar>) {
     debug_assert!(dst.glwe_size() == src.glwe_size());
     debug_assert!(dst.polynomial_size() == src.polynomial_size());
     dst.as_mut().clone_from_slice(src.as_ref());
@@ -148,6 +148,84 @@ where
         { Scalar::ONE } else { Scalar::MAX };
         let c = *poly.as_ref().get(i).unwrap();
         *out.as_mut().get_mut(j).unwrap() = sign.wrapping_mul(c);
+    }
+}
+
+/* -------- Polynomial Algorithm -------- */
+/// Multiply (mod $(X^{N}+1)$), the input polynomial with a monic monomial of a given degree i.e.
+/// $X^{degree}$, then subtract the input from the result and assign to the output.
+///
+/// output = input * X^degree - input
+///
+/// # Note
+/// (Code from tfhe::core_crypto::algorithms::polynomial_algorithms)
+///
+/// Computations wrap around (similar to computing modulo $2^{n\_{bits}}$) when exceeding the
+/// unsigned integer capacity.
+pub(crate) fn polynomial_wrapping_monic_monomial_mul_and_subtract<Scalar, OutputCont, InputCont>(
+    output: &mut Polynomial<OutputCont>,
+    input: &Polynomial<InputCont>,
+    monomial_degree: MonomialDegree,
+) where
+    Scalar: UnsignedInteger,
+    OutputCont: ContainerMut<Element = Scalar>,
+    InputCont: Container<Element = Scalar>,
+{
+    /// performs the operation: dst = -src - src_orig, with wrapping arithmetic
+    fn copy_with_neg_and_subtract<Scalar: UnsignedInteger>(
+        dst: &mut [Scalar],
+        src: &[Scalar],
+        src_orig: &[Scalar],
+    ) {
+        for ((dst, src), src_orig) in dst.iter_mut().zip(src).zip(src_orig) {
+            *dst = src.wrapping_neg().wrapping_sub(*src_orig);
+        }
+    }
+
+    /// performs the operation: dst = src - src_orig, with wrapping arithmetic
+    fn copy_without_neg_and_subtract<Scalar: UnsignedInteger>(
+        dst: &mut [Scalar],
+        src: &[Scalar],
+        src_orig: &[Scalar],
+    ) {
+        for ((dst, src), src_orig) in dst.iter_mut().zip(src).zip(src_orig) {
+            *dst = src.wrapping_sub(*src_orig);
+        }
+    }
+
+    assert!(
+        output.polynomial_size() == input.polynomial_size(),
+        "Output polynomial size {:?} is not the same as input polynomial size {:?}.",
+        output.polynomial_size(),
+        input.polynomial_size(),
+    );
+
+    let polynomial_size = output.polynomial_size().0;
+    let remaining_degree = monomial_degree.0 % polynomial_size;
+
+    let full_cycles_count = monomial_degree.0 / polynomial_size;
+    if full_cycles_count % 2 == 0 {
+        copy_with_neg_and_subtract(
+            &mut output[..remaining_degree],
+            &input[polynomial_size - remaining_degree..],
+            &input[..remaining_degree],
+        );
+        copy_without_neg_and_subtract(
+            &mut output[remaining_degree..],
+            &input[..polynomial_size - remaining_degree],
+            &input[remaining_degree..],
+        );
+    } else {
+        copy_without_neg_and_subtract(
+            &mut output[..remaining_degree],
+            &input[polynomial_size - remaining_degree..],
+            &input[..remaining_degree],
+        );
+        copy_with_neg_and_subtract(
+            &mut output[remaining_degree..],
+            &input[..polynomial_size - remaining_degree],
+            &input[remaining_degree..],
+        );
     }
 }
 
