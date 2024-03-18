@@ -4,51 +4,78 @@ use tfhe::core_crypto::{
 };
 
 /* -------- Error Tracking -------- */
-pub fn get_val_and_bit_err<Scalar, C>(
-    lwe_secret_key: &LweSecretKey<Vec<Scalar>>,
+pub fn get_val_and_bit_err<Scalar, KeyCont, C>(
+    lwe_secret_key: &LweSecretKey<KeyCont>,
     lwe_ctxt: &LweCiphertext<C>,
     correct_val: Scalar,
     delta: Scalar,
 ) -> (Scalar, u32)
 where
     Scalar: UnsignedInteger,
+    KeyCont: Container<Element=Scalar>,
     C: Container<Element=Scalar>,
 {
-    let decrypted_u64 = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
-    let err = {
+    let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let abs_err = {
         let correct_val = correct_val * delta;
-        let d0 = decrypted_u64.wrapping_sub(correct_val);
-        let d1 = correct_val.wrapping_sub(decrypted_u64);
+        let d0 = decrypted.wrapping_sub(correct_val);
+        let d1 = correct_val.wrapping_sub(decrypted);
         std::cmp::min(d0, d1)
     };
-    let bit_err = if err != Scalar::ZERO {Scalar::BITS as u32 - err.leading_zeros()} else {0};
-    let rounding = (decrypted_u64 & (delta >> 1)) << 1;
-    let decoded = (decrypted_u64.wrapping_add(rounding)) / delta;
+    let bit_err = if abs_err != Scalar::ZERO {Scalar::BITS as u32 - abs_err.leading_zeros()} else {0};
+    let rounding = (decrypted & (delta >> 1)) << 1;
+    let decoded = (decrypted.wrapping_add(rounding)) / delta;
 
     return (decoded, bit_err);
 }
 
-pub fn get_val_and_abs_err<Scalar, C>(
-    lwe_secret_key: &LweSecretKey<Vec<Scalar>>,
+pub fn get_val_and_abs_err<Scalar, KeyCont, C>(
+    lwe_secret_key: &LweSecretKey<KeyCont>,
     lwe_ctxt: &LweCiphertext<C>,
     correct_val: Scalar,
     delta: Scalar,
 ) -> (Scalar, Scalar)
 where
     Scalar: UnsignedInteger,
+    KeyCont: Container<Element=Scalar>,
     C: Container<Element=Scalar>,
 {
-    let decrypted_u64 = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
-    let err = {
+    let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let abs_err = {
         let correct_val = correct_val * delta;
-        let d0 = decrypted_u64.wrapping_sub(correct_val);
-        let d1 = correct_val.wrapping_sub(decrypted_u64);
+        let d0 = decrypted.wrapping_sub(correct_val);
+        let d1 = correct_val.wrapping_sub(decrypted);
         std::cmp::min(d0, d1)
     };
-    let rounding = (decrypted_u64 & (delta >> 1)) << 1;
-    let decoded = (decrypted_u64.wrapping_add(rounding)) / delta;
+    let rounding = (decrypted & (delta >> 1)) << 1;
+    let decoded = (decrypted.wrapping_add(rounding)) / delta;
 
-    return (decoded, err);
+    return (decoded, abs_err);
+}
+
+pub fn get_val_and_bit_and_abs_err<Scalar, KeyCont, C>(
+    lwe_secret_key: &LweSecretKey<KeyCont>,
+    lwe_ctxt: &LweCiphertext<C>,
+    correct_val: Scalar,
+    delta: Scalar,
+) -> (Scalar, u32, Scalar)
+where
+    Scalar: UnsignedInteger,
+    KeyCont: Container<Element=Scalar>,
+    C: Container<Element=Scalar>,
+{
+    let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let abs_err = {
+        let correct_val = correct_val * delta;
+        let d0 = decrypted.wrapping_sub(correct_val);
+        let d1 = correct_val.wrapping_sub(decrypted);
+        std::cmp::min(d0, d1)
+    };
+    let bit_err = if abs_err != Scalar::ZERO {Scalar::BITS as u32 - abs_err.leading_zeros()} else {0};
+    let rounding = (decrypted & (delta >> 1)) << 1;
+    let decoded = (decrypted.wrapping_add(rounding)) / delta;
+
+    return (decoded, bit_err, abs_err);
 }
 
 pub fn ggsw_const_print_err<Scalar: UnsignedTorus>(
@@ -118,6 +145,20 @@ pub fn ggsw_const_print_err<Scalar: UnsignedTorus>(
             }
         }
         println!(" ...");
+    }
+}
+
+/* -------- LWE List -------- */
+pub fn lwe_ciphertext_list_add_assign<Scalar, LhsContMut, RhsCont>(
+    lhs: &mut LweCiphertextList<LhsContMut>,
+    rhs: LweCiphertextList<RhsCont>,
+) where
+    Scalar: UnsignedInteger,
+    LhsContMut: ContainerMut<Element=Scalar>,
+    RhsCont: Container<Element=Scalar>,
+{
+    for (mut lwe_lhs, lwe_rhs) in lhs.iter_mut().zip(rhs.iter()) {
+        lwe_ciphertext_add_assign(&mut lwe_lhs, &lwe_rhs);
     }
 }
 
