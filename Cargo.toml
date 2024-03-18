@@ -36,6 +36,10 @@ harness = false
 name = "pbs_to_glwe"
 harness = false
 
+[[test]]
+name = "ggsw_conv"
+harness = false
+
 [features]
 default = ["monothread"]
 monothread = []

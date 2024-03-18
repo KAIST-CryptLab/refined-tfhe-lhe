@@ -51,6 +51,76 @@ where
     return (decoded, err);
 }
 
+pub fn ggsw_const_print_err<Scalar: UnsignedTorus>(
+    glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
+    ggsw_in: GgswCiphertextView<Scalar>,
+    correct_val: Scalar,
+    level: usize,
+    deg: usize,
+) {
+    assert!(correct_val == Scalar::ZERO || correct_val == Scalar::ONE);
+
+    let decomp_base_log = ggsw_in.decomposition_base_log();
+    let decomp_level = ggsw_in.decomposition_level_count();
+    debug_assert!(level <= decomp_level.0 + 1);
+
+    let glwe_size = ggsw_in.glwe_size();
+    let glwe_dimension = glwe_size.to_glwe_dimension();
+
+    let row_begin = glwe_size.0 * (level - 1);
+    let row_end = glwe_size.0 * level;
+    let log_scale = Scalar::BITS - level * decomp_base_log.0;
+    let delta = Scalar::ONE << log_scale;
+
+    let glwe_list = ggsw_in.as_glwe_list();
+    let glwe_sk_poly_list = glwe_secret_key.as_polynomial_list();
+    for row in row_begin..row_end {
+        let glwe = glwe_list.get(row);
+        let mut dec_pt = PlaintextList::new(Scalar::ZERO, PlaintextCount(ggsw_in.polynomial_size().0));
+        decrypt_glwe_ciphertext(glwe_secret_key, &glwe, &mut dec_pt);
+
+        print!("row[{row}] bit err:");
+        if correct_val == Scalar::ZERO {
+            for i in 0..deg {
+                let decrypted = *dec_pt.get(i).0;
+                let err = std::cmp::min(decrypted, decrypted.wrapping_neg());
+                let bit_err = if err != Scalar::ZERO {Scalar::BITS - err.leading_zeros() as usize} else {0};
+                print!(" {bit_err:>2}");
+            }
+        } else {
+            let col = row % glwe_size.0;
+            if col < glwe_dimension.0 {
+                let glwe_sk_poly = glwe_sk_poly_list.get(col);
+                for i in 0..deg {
+                    let decrypted = *dec_pt.get(i).0;
+                    let err = {
+                        let glwe_sk_val = glwe_sk_poly.as_ref().get(i).unwrap();
+                        let correct_val = (*glwe_sk_val).wrapping_neg() << log_scale;
+                        let d0 = decrypted.wrapping_sub(correct_val);
+                        let d1 = correct_val.wrapping_sub(decrypted);
+                        std::cmp::min(d0, d1)
+                    };
+                    let bit_err = if err != Scalar::ZERO {Scalar::BITS - err.leading_zeros() as usize} else {0};
+                    print!(" {bit_err:>2}");
+                }
+            } else {
+                for i in 0..deg {
+                    let decrypted = *dec_pt.get(i).0;
+                    let err = {
+                        let correct_val = if i == 0 {delta} else {Scalar::ZERO};
+                        let d0 = decrypted.wrapping_sub(correct_val);
+                        let d1 = correct_val.wrapping_sub(decrypted);
+                        std::cmp::min(d0, d1)
+                    };
+                    let bit_err = if err != Scalar::ZERO {Scalar::BITS - err.leading_zeros() as usize} else {0};
+                    print!(" {bit_err:>2}");
+                }
+            }
+        }
+        println!(" ...");
+    }
+}
+
 /* -------- GLWE -------- */
 pub fn glwe_ciphertext_monic_monomial_div_assign<Scalar, ContMut>(
     glwe: &mut GlweCiphertext<ContMut>,
