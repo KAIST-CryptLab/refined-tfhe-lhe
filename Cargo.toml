@@ -10,6 +10,7 @@ tfhe = { version = "0.5.3", features = ["boolean", "shortint", "x86_64-unix"] }
 rand = { version = "*" }
 aligned-vec = { version = "0.5.0" }
 dyn-stack = { version = "0.9" }
+aes = { version = "*" }
 rayon = { version = "*", optional = true }
 
 [[test]]
@@ -38,6 +39,10 @@ harness = false
 
 [[test]]
 name = "ggsw_conv"
+harness = false
+
+[[test]]
+name = "aes_ref"
 harness = false
 
 [features]

@@ -6,6 +6,7 @@ pub mod automorphism;
 pub mod automorphism128;
 pub mod pbs;
 pub mod ggsw_conv;
+pub mod aes_ref;
 
 pub use utils::*;
 pub use fourier_poly_mult::*;
@@ -15,3 +16,4 @@ pub use automorphism::*;
 pub use automorphism128::*;
 pub use pbs::*;
 pub use ggsw_conv::*;
+pub use aes_ref::*;
