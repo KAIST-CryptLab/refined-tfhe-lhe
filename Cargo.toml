@@ -53,6 +53,10 @@ harness = false
 name = "aes_ref"
 harness = false
 
+[[test]]
+name = "aes_eval"
+harness = false
+
 [features]
 default = ["monothread"]
 monothread = []
