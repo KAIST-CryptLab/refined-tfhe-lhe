@@ -46,6 +46,10 @@ name = "ggsw_conv"
 harness = false
 
 [[test]]
+name = "ggsw_lut"
+harness = false
+
+[[test]]
 name = "aes_ref"
 harness = false
 
