@@ -118,77 +118,73 @@ pub fn lwe_msb_bit_to_glev_by_trace128_and_rescale<Scalar>(
     let log_large_q = Scalar::BITS as usize + log_polynomial_size;
     let large_ciphertext_modulus = CiphertextModulus::<u128>::try_new_power_of_2(log_large_q).unwrap();
 
-    let num_pbs = if glev_level.0 % (1 << log_lut_count.0) == 0 {
-        glev_level.0 / (1 << log_lut_count.0)
-    } else {
-        glev_level.0 / (1 << log_lut_count.0) + 1
-    };
-    assert!(num_pbs == 1, "more than one pbs will be implemented");
+    let lut_count = 1 << log_lut_count.0;
+    for (acc_idx, mut glev_chunk) in glev.chunks_mut(lut_count).enumerate() {
+        let mut accumulator = (0..polynomial_size.0).map(|i| {
+            let k = i % lut_count;
+            let log_scale = Scalar::BITS - (acc_idx * lut_count + k + 1) * glev_base_log.0;
+            (Scalar::ONE).wrapping_neg() << (log_scale - 1)
+        }).collect::<Vec<Scalar>>();
 
-    let mut accumulator = (0..polynomial_size.0).map(|i| {
-        let k = i % (1 << log_lut_count.0);
-        let log_scale = Scalar::BITS - (k + 1) * glev_base_log.0;
-        (Scalar::ONE).wrapping_neg() << (log_scale - 1)
-    }).collect::<Vec<Scalar>>();
+        for a_i in accumulator[0..half_box_size].iter_mut() {
+            *a_i = (*a_i).wrapping_neg();
+        }
+        accumulator.rotate_left(half_box_size);
 
-    for a_i in accumulator[0..half_box_size].iter_mut() {
-        *a_i = (*a_i).wrapping_neg();
-    }
-    accumulator.rotate_left(half_box_size);
-
-    let accumulator_plaintext = PlaintextList::from_container(accumulator);
-    let accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(
-        glwe_size,
-        &accumulator_plaintext,
-        ciphertext_modulus,
-    );
-
-    let mut buffers = ComputationBuffers::new();
-    let fft = Fft::new(polynomial_size);
-    let fft = fft.as_view();
-
-    buffers.resize(
-        programmable_bootstrap_lwe_ciphertext_mem_optimized_requirement::<Scalar>(
+        let accumulator_plaintext = PlaintextList::from_container(accumulator);
+        let accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(
             glwe_size,
+            &accumulator_plaintext,
+            ciphertext_modulus,
+        );
+
+        let mut buffers = ComputationBuffers::new();
+        let fft = Fft::new(polynomial_size);
+        let fft = fft.as_view();
+
+        buffers.resize(
+            programmable_bootstrap_lwe_ciphertext_mem_optimized_requirement::<Scalar>(
+                glwe_size,
+                polynomial_size,
+                fft,
+            )
+            .unwrap()
+            .unaligned_bytes_required(),
+        );
+        let stack = buffers.stack();
+
+        let (mut local_accumulator_data, stack) = stack.collect_aligned(CACHELINE_ALIGN, accumulator.as_ref().iter().copied());
+        let mut local_accumulator = GlweCiphertextMutView::from_container(
+            &mut *local_accumulator_data,
             polynomial_size,
+            ciphertext_modulus,
+        );
+
+        gen_blind_rotate_local_assign(
+            fourier_bsk,
+            local_accumulator.as_mut_view(),
+            ModulusSwitchOffset(0),
+            log_lut_count,
+            lwe_in.as_ref(),
             fft,
-        )
-        .unwrap()
-        .unaligned_bytes_required(),
-    );
-    let stack = buffers.stack();
+            stack,
+        );
 
-    let (mut local_accumulator_data, stack) = stack.collect_aligned(CACHELINE_ALIGN, accumulator.as_ref().iter().copied());
-    let mut local_accumulator = GlweCiphertextMutView::from_container(
-        &mut *local_accumulator_data,
-        polynomial_size,
-        ciphertext_modulus,
-    );
+        for (k, mut glwe) in glev_chunk.iter_mut().enumerate() {
+            let cur_level = acc_idx * lut_count + k + 1;
+            let log_scale = Scalar::BITS - cur_level * glev_base_log.0;
 
-    gen_blind_rotate_local_assign(
-        fourier_bsk,
-        local_accumulator.as_mut_view(),
-        ModulusSwitchOffset(0),
-        log_lut_count,
-        lwe_in.as_ref(),
-        fft,
-        stack,
-    );
+            let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+            glwe_ciphertext_clone_from(buf.as_mut_view(), local_accumulator.as_view());
+            glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(k));
+            glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
 
-    for (k, mut glwe) in glev.iter_mut().enumerate() {
-        let cur_level = k + 1;
-        let log_scale = Scalar::BITS - cur_level * glev_base_log.0;
+            let mut buf_mod_raise = GlweCiphertext::new(0u128, glwe_size, polynomial_size, large_ciphertext_modulus);
+            glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&buf, &mut buf_mod_raise);
 
-        let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-        glwe_ciphertext_clone_from(buf.as_mut_view(), local_accumulator.as_view());
-        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(k));
-        glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
-
-        let mut buf_mod_raise = GlweCiphertext::new(0u128, glwe_size, polynomial_size, large_ciphertext_modulus);
-        glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&buf, &mut buf_mod_raise);
-
-        let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
-        glwe_ciphertext_clone_from(glwe.as_mut_view(), buf.as_view());
+            let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
+            glwe_ciphertext_clone_from(glwe.as_mut_view(), buf.as_view());
+        }
     }
 }
 

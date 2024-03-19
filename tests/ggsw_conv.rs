@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{automorphism128::*, circuit_bootstrap_by_trace128_and_rescale, generate_scheme_switching_key, lwe_msb_bit_to_glev_by_trace128_and_rescale, utils::*};
+use hom_trace::{automorphism128::*, ggsw_conv::*, utils::*};
 
 fn main() {
     let lwe_dimension = LweDimension(742);
@@ -20,6 +20,7 @@ fn main() {
     let auto_level = DecompositionLevelCount(2);
     let ss_base_log = DecompositionBaseLog(15);
     let ss_level = DecompositionLevelCount(2);
+    let log_lut_count = LutCountLog(1);
 
     // Set random generators and buffers
     let mut boxed_seeder = new_seeder();
@@ -86,7 +87,7 @@ fn main() {
     let glev_mut_view = GlweCiphertextListMutView::from_container(glev.as_mut(), glwe_size, polynomial_size, ciphertext_modulus);
 
     let now = Instant::now();
-    lwe_msb_bit_to_glev_by_trace128_and_rescale(lwe_in.as_view(), glev_mut_view, fourier_bsk, &auto128_keys, ggsw_base_log, ggsw_level, LutCountLog(1));
+    lwe_msb_bit_to_glev_by_trace128_and_rescale(lwe_in.as_view(), glev_mut_view, fourier_bsk, &auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
     let time = now.elapsed();
     println!("LWE to GLEV: {} ms", time.as_micros() as f64 / 1000f64);
 
