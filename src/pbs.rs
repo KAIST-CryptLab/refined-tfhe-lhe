@@ -3,6 +3,7 @@ use tfhe::core_crypto::{
     algorithms::polynomial_algorithms::*,
     fft_impl::{
         common::fast_pbs_modulus_switch, fft64::{
+            c64,
             crypto::bootstrap::FourierLweBootstrapKeyView,
             math::fft::FftView
         }
@@ -10,7 +11,7 @@ use tfhe::core_crypto::{
 };
 use aligned_vec::{ABox, CACHELINE_ALIGN};
 use dyn_stack::{PodStack, ReborrowMut};
-use crate::{utils::*, automorphism128::*, rescale::*};
+use crate::{utils::*, automorphism::*, automorphism128::*, rescale::*};
 
 pub fn generate_accumulator<Scalar, F>(
     polynomial_size: PolynomialSize,
@@ -22,7 +23,7 @@ pub fn generate_accumulator<Scalar, F>(
 ) -> GlweCiphertextOwned<Scalar>
 where
     Scalar: UnsignedTorus + CastFrom<usize>,
-    F: Fn(Scalar) -> Scalar, 
+    F: Fn(Scalar) -> Scalar,
 {
     // N/(p/2) = size of each block, to correct noise from the input we introduce the
     // notion of box, which manages redundancy to yield a denoised value
@@ -127,6 +128,63 @@ pub fn pbs_to_glwe_by_auto128_and_rescale<Scalar, InputCont, OutputCont, AccCont
     glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&local_accumulator, &mut buf_mod_raise);
 
     let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
+    glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());
+}
+
+pub fn pbs_to_glwe_by_auto<Scalar, InputCont, OutputCont, AccCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut GlweCiphertext<OutputCont>,
+    accumulator: &GlweCiphertext<AccCont>,
+    fourier_bsk: FourierLweBootstrapKeyView<'_>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+) where
+    Scalar: UnsignedTorus + CastInto<usize>,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+    AccCont: Container<Element=Scalar>,
+{
+    assert!(Scalar::BITS <= 64, "only supports ciphertext modulus <= 2^64");
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    assert_eq!(input.ciphertext_modulus(), accumulator.ciphertext_modulus());
+    assert_eq!(output.glwe_size(), accumulator.glwe_size());
+    assert_eq!(output.polynomial_size(), accumulator.polynomial_size());
+    assert_eq!(output.polynomial_size(), fourier_bsk.polynomial_size());
+
+    let mut buffers = ComputationBuffers::new();
+
+    let fft = Fft::new(fourier_bsk.polynomial_size());
+    let fft = fft.as_view();
+
+    buffers.resize(
+        programmable_bootstrap_lwe_ciphertext_mem_optimized_requirement::<Scalar>(
+            output.glwe_size(),
+            output.polynomial_size(),
+            fft,
+        )
+        .unwrap()
+        .unaligned_bytes_required(),
+    );
+    let stack = buffers.stack();
+
+    let accumulator = accumulator.as_view();
+    let (mut local_accumulator_data, stack) = stack.collect_aligned(CACHELINE_ALIGN, accumulator.as_ref().iter().copied());
+    let mut local_accumulator = GlweCiphertextMutView::from_container(
+        &mut *local_accumulator_data,
+        accumulator.polynomial_size(),
+        accumulator.ciphertext_modulus(),
+    );
+
+    gen_blind_rotate_local_assign(
+        fourier_bsk.as_view(),
+        local_accumulator.as_mut_view(),
+        ModulusSwitchOffset(0),
+        LutCountLog(0),
+        input.as_ref(),
+        fft,
+        stack,
+    );
+
+    let buf = trace(local_accumulator.as_view(), auto_keys);
     glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());
 }
 
