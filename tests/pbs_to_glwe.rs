@@ -82,13 +82,17 @@ fn main() {
     println!("Time: {} ms", time.as_micros() as f64 / 1000f64);
 
     print!("Err: ");
-    for i in 0..10 {
+    let mut max_bit_err = 0;
+    for i in 0..polynomial_size.0 {
         let mut lwe_out = LweCiphertext::new(0u64, big_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
         extract_lwe_sample_from_glwe_ciphertext(&glwe_out, &mut lwe_out, MonomialDegree(i));
 
         let correct_val = if i == 0 {msg} else {0};
         let (_decoded, bit_err) = get_val_and_bit_err(&big_lwe_sk, &lwe_out, correct_val, delta);
-        print!("{bit_err} ");
+        if i < 10 {
+            print!("{bit_err} ");
+        }
+        max_bit_err = std::cmp::max(max_bit_err, bit_err);
     }
-    println!("...");
+    println!("... ({max_bit_err})");
 }

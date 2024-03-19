@@ -93,16 +93,17 @@ fn main() {
     for (k, glwe) in glev.iter().enumerate() {
         let level = k + 1;
         let log_scale = u64::BITS as usize -  ggsw_base_log.0 * level;
-        print!("Level {level}: ");
-        for i in 0..10 {
-            let mut lwe = LweCiphertext::new(0u64, big_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
+        print!("  Level {level}: ");
+        let mut max_err = 0;
+        for i in 0..polynomial_size.0 {
+            let mut lwe: LweCiphertext<Vec<u64>> = LweCiphertext::new(0u64, big_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
             extract_lwe_sample_from_glwe_ciphertext(&glwe, &mut lwe, MonomialDegree(i));
 
             let correct_val = if i == 0 {msg} else {0};
-            let (_decoded, bit_err) = get_val_and_bit_err(&big_lwe_sk, &lwe, correct_val, 1 << log_scale);
-            print!("{bit_err} ");
+            let (_decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe, correct_val, 1 << log_scale);
+            max_err = std::cmp::max(max_err, abs_err);
         }
-        println!();
+        println!("{:.2} bits", (max_err as f64).log2());
     }
 
     // Scheme Switching
@@ -119,11 +120,9 @@ fn main() {
         glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
     }
     let time = now.elapsed();
-    println!("\nScheme switching: {} ms", time.as_micros() as f64 / 1000f64);
 
-    for level in 1..=ggsw_level.0 {
-        ggsw_const_print_err(&glwe_sk, ggsw.as_view(), msg, level, 10);
-    }
+    let max_err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
+    println!("\nScheme switching: {} ms, {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2());
 
     // Circuit Bootstrapping
     let now = Instant::now();
@@ -138,7 +137,6 @@ fn main() {
     );
     let time = now.elapsed();
     println!("\nCircuit bootstrapping: {} ms", time.as_micros() as f64 / 1000f64);
-
     let mut glwe_lhs = GlweCiphertext::new(0u64, glwe_size, polynomial_size, ciphertext_modulus);
     let pt = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
         if i == 0 {1u64 << 63} else {0u64}
@@ -148,13 +146,14 @@ fn main() {
     encrypt_glwe_ciphertext(&glwe_sk, &mut glwe_lhs, &pt, glwe_modular_std_dev, &mut encryption_generator);
     add_external_product_assign(&mut glwe_out, &fourier_ggsw, &glwe_lhs);
 
-    for i in 0..10 {
+    let mut max_err = 0;
+    for i in 0..polynomial_size.0 {
         let mut lwe = LweCiphertext::new(0u64, big_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
         extract_lwe_sample_from_glwe_ciphertext(&glwe_out, &mut lwe, MonomialDegree(i));
 
         let correct_val = *pt.get(i).0 >> 63;
-        let (_, bit_err) = get_val_and_bit_err(&big_lwe_sk, &lwe, correct_val, 1u64 << 63);
-        print!("{bit_err} ");
+        let (_, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe, correct_val, 1u64 << 63);
+        max_err = std::cmp::max(max_err, abs_err);
     }
-    println!("...");
+    println!("External product to fresh GLWE: {:.2} bits", (max_err as f64).log2());
 }
