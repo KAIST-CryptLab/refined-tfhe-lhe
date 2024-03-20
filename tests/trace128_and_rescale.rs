@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{rescale::*, automorphism128::*};
+use hom_trace::{mod_switch::*, automorphism128::*};
 
 fn main() {
     type SmallQ = u64;
