@@ -13,7 +13,7 @@ use tfhe::{
     },
 };
 use std::collections::HashMap;
-use crate::{aes_ref::*, ggsw_conv::*, utils::*, Automorph128Key};
+use crate::{aes_ref::*, ggsw_conv::*, utils::*, AutomorphKey, Automorph128Key};
 
 #[inline]
 pub fn he_add_round_key<Scalar, StateCont, RkCont>(
@@ -70,7 +70,7 @@ pub fn he_sub_bytes_by_trace128_and_rescale<Scalar, KskCont>(
     ksk: &LweKeyswitchKey<KskCont>,
     fourier_bsk: FourierLweBootstrapKeyView,
     auto128_keys: &HashMap<usize, Automorph128Key<ABox<[f64]>>>,
-    fourier_ggsw_key: FourierGgswCiphertextListView,
+    ss_key: FourierGgswCiphertextListView,
     ggsw_base_log: DecompositionBaseLog,
     ggsw_level: DecompositionLevelCount,
     log_lut_count: LutCountLog,
@@ -95,7 +95,83 @@ pub fn he_sub_bytes_by_trace128_and_rescale<Scalar, KskCont>(
             ksk,
             fourier_bsk,
             auto128_keys,
-            fourier_ggsw_key,
+            ss_key,
+            ggsw_base_log,
+            ggsw_level,
+            log_lut_count,
+        );
+    }
+}
+
+pub fn he_sub_bytes_by_trace_with_mod_switch<Scalar, KskCont>(
+    he_state: &mut LweCiphertextListOwned<Scalar>,
+    ksk: &LweKeyswitchKey<KskCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    ss_key: FourierGgswCiphertextListView,
+    ggsw_base_log: DecompositionBaseLog,
+    ggsw_level: DecompositionLevelCount,
+    log_lut_count: LutCountLog,
+) where
+    Scalar: UnsignedTorus + CastInto<usize> + CastFrom<usize>,
+    KskCont: Container<Element=Scalar>,
+{
+    let buf = he_state.clone();
+    *he_state = LweCiphertextList::new(
+        Scalar::ZERO,
+        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        he_state.ciphertext_modulus(),
+    );
+
+    for (input_byte, mut output_byte) in buf.chunks_exact(BYTESIZE)
+        .zip(he_state.chunks_exact_mut(BYTESIZE))
+    {
+        he_sbox_eval_by_trace_with_mod_switch(
+            &input_byte,
+            &mut output_byte,
+            ksk,
+            fourier_bsk,
+            auto_keys,
+            ss_key,
+            ggsw_base_log,
+            ggsw_level,
+            log_lut_count,
+        );
+    }
+}
+
+pub fn he_sub_bytes_by_trace<Scalar, KskCont>(
+    he_state: &mut LweCiphertextListOwned<Scalar>,
+    ksk: &LweKeyswitchKey<KskCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    ss_key: FourierGgswCiphertextListView,
+    ggsw_base_log: DecompositionBaseLog,
+    ggsw_level: DecompositionLevelCount,
+    log_lut_count: LutCountLog,
+) where
+    Scalar: UnsignedTorus + CastInto<usize> + CastFrom<usize>,
+    KskCont: Container<Element=Scalar>,
+{
+    let buf = he_state.clone();
+    *he_state = LweCiphertextList::new(
+        Scalar::ZERO,
+        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        he_state.ciphertext_modulus(),
+    );
+
+    for (input_byte, mut output_byte) in buf.chunks_exact(BYTESIZE)
+        .zip(he_state.chunks_exact_mut(BYTESIZE))
+    {
+        he_sbox_eval_by_trace(
+            &input_byte,
+            &mut output_byte,
+            ksk,
+            fourier_bsk,
+            auto_keys,
+            ss_key,
             ggsw_base_log,
             ggsw_level,
             log_lut_count,
@@ -242,7 +318,6 @@ fn he_sbox_eval_by_pksk<Scalar, InCont, OutCont, KskCont>(
     KskCont: Container<Element=Scalar>,
 {
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let polynomial_size = fourier_bsk.polynomial_size();
     let ciphertext_modulus = output.ciphertext_modulus();
 
@@ -288,15 +363,7 @@ fn he_sbox_eval_by_pksk<Scalar, InCont, OutCont, KskCont>(
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-        }
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
 
     let mut fourier_ggsw_bit_list = FourierGgswCiphertextList::new(
@@ -363,7 +430,6 @@ fn he_sbox_eval_by_trace128_and_rescale<Scalar, InCont, OutCont, KskCont>(
     KskCont: Container<Element=Scalar>,
 {
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let polynomial_size = fourier_bsk.polynomial_size();
     let ciphertext_modulus = output.ciphertext_modulus();
 
@@ -410,15 +476,233 @@ fn he_sbox_eval_by_trace128_and_rescale<Scalar, InCont, OutCont, KskCont>(
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
+        switch_scheme(&glev, &mut ggsw, ss_key);
+    }
 
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
+    let mut fourier_ggsw_bit_list = FourierGgswCiphertextList::new(
+        vec![c64::default();
+        BYTESIZE * polynomial_size.to_fourier_polynomial_size().0
+            * glwe_size.0
+            * glwe_size.0
+            * ggsw_level.0
+        ],
+        BYTESIZE,
+        glwe_size,
+        polynomial_size,
+        ggsw_base_log,
+        ggsw_level,
+    );
+    for (mut fourier_ggsw, ggsw) in fourier_ggsw_bit_list.as_mut_view().into_ggsw_iter().zip(ggsw_bit_list.iter()) {
+        convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
+    }
+
+    let num_par_lut = polynomial_size.0 / (1 << BYTESIZE);
+    let num_accumulator = if BYTESIZE % num_par_lut == 0 {
+        BYTESIZE / num_par_lut
+    } else {
+        BYTESIZE / num_par_lut + 1
+    };
+
+    for acc_idx in 0..num_accumulator {
+        let accumulator = (0..polynomial_size.0).map(|i| {
+            let lut_idx = acc_idx * num_par_lut + i / (1 << BYTESIZE);
+            (((AES128_SBOX[i % (1 << BYTESIZE)] & (1 << lut_idx)) as usize) << ((Scalar::BITS - 1) - lut_idx)).cast_into()
+        }).collect::<Vec<Scalar>>();
+        let accumulator_plaintext = PlaintextList::from_container(accumulator);
+        let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
+
+        for (i, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
+            let mut buf = accumulator.clone();
+            glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << i));
+            glwe_ciphertext_sub_assign(&mut buf, &accumulator);
+            add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
         }
+
+        for i in 0..num_par_lut {
+            let bit_idx = acc_idx * num_par_lut + i;
+            let mut lwe_out = output.get_mut(bit_idx);
+            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(i * (1 << BYTESIZE)));
+        }
+    }
+}
+
+fn he_sbox_eval_by_trace_with_mod_switch<Scalar, InCont, OutCont, KskCont>(
+    input: &LweCiphertextList<InCont>,
+    output: &mut LweCiphertextList<OutCont>,
+    ksk: &LweKeyswitchKey<KskCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    ss_key: FourierGgswCiphertextListView,
+    ggsw_base_log: DecompositionBaseLog,
+    ggsw_level: DecompositionLevelCount,
+    log_lut_count: LutCountLog,
+) where
+    Scalar: UnsignedTorus + CastInto<usize> + CastFrom<usize>,
+    InCont: Container<Element=Scalar>,
+    OutCont: ContainerMut<Element=Scalar>,
+    KskCont: Container<Element=Scalar>,
+{
+    let glwe_size = fourier_bsk.glwe_size();
+    let polynomial_size = fourier_bsk.polynomial_size();
+    let ciphertext_modulus = output.ciphertext_modulus();
+
+    let mut vec_glev = vec![
+        GlweCiphertextList::new(
+            Scalar::ZERO,
+            glwe_size,
+            polynomial_size,
+            GlweCiphertextCount(ggsw_level.0),
+            ciphertext_modulus,
+        ); BYTESIZE];
+    for (input_bit, glev) in input.iter().zip(vec_glev.iter_mut()) {
+        let glev_mut_view = GlweCiphertextListMutView::from_container(
+            glev.as_mut(),
+            glwe_size,
+            polynomial_size,
+            ciphertext_modulus,
+        );
+
+        let mut input_bit_ks = LweCiphertext::new(
+            Scalar::ZERO,
+            ksk.output_lwe_size(),
+            ciphertext_modulus,
+        );
+        keyswitch_lwe_ciphertext(ksk, &input_bit, &mut input_bit_ks);
+        lwe_msb_bit_to_glev_by_trace_with_mod_switch(
+            input_bit_ks.as_view(),
+            glev_mut_view,
+            fourier_bsk,
+            auto_keys,
+            ggsw_base_log,
+            ggsw_level,
+            log_lut_count,
+        );
+    }
+
+    let mut ggsw_bit_list = GgswCiphertextList::new(
+        Scalar::ZERO,
+        glwe_size,
+        polynomial_size,
+        ggsw_base_log,
+        ggsw_level,
+        GgswCiphertextCount(vec_glev.len()),
+        ciphertext_modulus,
+    );
+    for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
+        switch_scheme(&glev, &mut ggsw, ss_key);
+    }
+
+    let mut fourier_ggsw_bit_list = FourierGgswCiphertextList::new(
+        vec![c64::default();
+        BYTESIZE * polynomial_size.to_fourier_polynomial_size().0
+            * glwe_size.0
+            * glwe_size.0
+            * ggsw_level.0
+        ],
+        BYTESIZE,
+        glwe_size,
+        polynomial_size,
+        ggsw_base_log,
+        ggsw_level,
+    );
+    for (mut fourier_ggsw, ggsw) in fourier_ggsw_bit_list.as_mut_view().into_ggsw_iter().zip(ggsw_bit_list.iter()) {
+        convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
+    }
+
+    let num_par_lut = polynomial_size.0 / (1 << BYTESIZE);
+    let num_accumulator = if BYTESIZE % num_par_lut == 0 {
+        BYTESIZE / num_par_lut
+    } else {
+        BYTESIZE / num_par_lut + 1
+    };
+
+    for acc_idx in 0..num_accumulator {
+        let accumulator = (0..polynomial_size.0).map(|i| {
+            let lut_idx = acc_idx * num_par_lut + i / (1 << BYTESIZE);
+            (((AES128_SBOX[i % (1 << BYTESIZE)] & (1 << lut_idx)) as usize) << ((Scalar::BITS - 1) - lut_idx)).cast_into()
+        }).collect::<Vec<Scalar>>();
+        let accumulator_plaintext = PlaintextList::from_container(accumulator);
+        let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
+
+        for (i, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
+            let mut buf = accumulator.clone();
+            glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << i));
+            glwe_ciphertext_sub_assign(&mut buf, &accumulator);
+            add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
+        }
+
+        for i in 0..num_par_lut {
+            let bit_idx = acc_idx * num_par_lut + i;
+            let mut lwe_out = output.get_mut(bit_idx);
+            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(i * (1 << BYTESIZE)));
+        }
+    }
+}
+
+fn he_sbox_eval_by_trace<Scalar, InCont, OutCont, KskCont>(
+    input: &LweCiphertextList<InCont>,
+    output: &mut LweCiphertextList<OutCont>,
+    ksk: &LweKeyswitchKey<KskCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    ss_key: FourierGgswCiphertextListView,
+    ggsw_base_log: DecompositionBaseLog,
+    ggsw_level: DecompositionLevelCount,
+    log_lut_count: LutCountLog,
+) where
+    Scalar: UnsignedTorus + CastInto<usize> + CastFrom<usize>,
+    InCont: Container<Element=Scalar>,
+    OutCont: ContainerMut<Element=Scalar>,
+    KskCont: Container<Element=Scalar>,
+{
+    let glwe_size = fourier_bsk.glwe_size();
+    let polynomial_size = fourier_bsk.polynomial_size();
+    let ciphertext_modulus = output.ciphertext_modulus();
+
+    let mut vec_glev = vec![
+        GlweCiphertextList::new(
+            Scalar::ZERO,
+            glwe_size,
+            polynomial_size,
+            GlweCiphertextCount(ggsw_level.0),
+            ciphertext_modulus,
+        ); BYTESIZE];
+    for (input_bit, glev) in input.iter().zip(vec_glev.iter_mut()) {
+        let glev_mut_view = GlweCiphertextListMutView::from_container(
+            glev.as_mut(),
+            glwe_size,
+            polynomial_size,
+            ciphertext_modulus,
+        );
+
+        let mut input_bit_ks = LweCiphertext::new(
+            Scalar::ZERO,
+            ksk.output_lwe_size(),
+            ciphertext_modulus,
+        );
+        keyswitch_lwe_ciphertext(ksk, &input_bit, &mut input_bit_ks);
+        lwe_msb_bit_to_glev_by_trace(
+            input_bit_ks.as_view(),
+            glev_mut_view,
+            fourier_bsk,
+            auto_keys,
+            ggsw_base_log,
+            ggsw_level,
+            log_lut_count,
+        );
+    }
+
+    let mut ggsw_bit_list = GgswCiphertextList::new(
+        Scalar::ZERO,
+        glwe_size,
+        polynomial_size,
+        ggsw_base_log,
+        ggsw_level,
+        GgswCiphertextCount(vec_glev.len()),
+        ciphertext_modulus,
+    );
+    for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
 
     let mut fourier_ggsw_bit_list = FourierGgswCiphertextList::new(
