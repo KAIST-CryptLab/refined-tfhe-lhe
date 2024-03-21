@@ -95,6 +95,36 @@ where
     fourier_ggsw_key
 }
 
+pub fn switch_scheme<Scalar, InputCont, OutputCont>(
+    glev: &GlweCiphertextList<InputCont>,
+    ggsw: &mut GgswCiphertext<OutputCont>,
+    ss_key: FourierGgswCiphertextListView,
+) where
+    Scalar: UnsignedTorus,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    assert_eq!(glev.ciphertext_modulus(), ggsw.ciphertext_modulus());
+    assert_eq!(glev.polynomial_size(), ggsw.polynomial_size());
+    assert_eq!(glev.polynomial_size(), ss_key.polynomial_size());
+    assert_eq!(glev.glwe_size(), ggsw.glwe_size());
+    assert_eq!(glev.glwe_size(), ss_key.glwe_size());
+    assert_eq!(glev.glwe_ciphertext_count().0, ggsw.decomposition_level_count().0);
+
+    let glwe_size = glev.glwe_size();
+    let glwe_dimension = glwe_size.to_glwe_dimension();
+
+    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
+        let glwe_bit = glev.get(col);
+        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
+
+        for (mut glwe_mask, ss_key_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
+            add_external_product_assign(&mut glwe_mask, &ss_key_ggsw, &glwe_bit);
+        }
+        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
+    }
+}
+
 pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     mut glev: GlweCiphertextListMutView<Scalar>,
@@ -459,7 +489,7 @@ pub fn lwe_msb_bit_to_glev_by_trace<Scalar>(
     }
 }
 
-pub fn circuit_bootstrap_by_trace_with_mod_switch<Scalar>(
+pub fn circuit_bootstrap_lwe_ciphertext_by_trace_with_mod_switch<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     fourier_bsk: FourierLweBootstrapKeyView,
     auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
@@ -477,7 +507,6 @@ where
 
     let polynomial_size = fourier_bsk.polynomial_size();
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let ciphertext_modulus = lwe_in.ciphertext_modulus();
 
     let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(ggsw_level.0), ciphertext_modulus);
@@ -486,15 +515,7 @@ where
     lwe_msb_bit_to_glev_by_trace_with_mod_switch(lwe_in.as_view(), glev_mut_view, fourier_bsk, auto_keys, ggsw_base_log, ggsw_level, log_lut_count);
 
     let mut ggsw = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
 
     let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, ggsw_base_log, ggsw_level);
     convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
@@ -503,7 +524,7 @@ where
 }
 
 
-pub fn circuit_bootstrap_by_trace128_and_rescale<Scalar>(
+pub fn circuit_bootstrap_lwe_ciphertext_by_trace128_and_rescale<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     fourier_bsk: FourierLweBootstrapKeyView,
     auto128_keys: &HashMap<usize, Automorph128Key<ABox<[f64]>>>,
@@ -521,7 +542,6 @@ where
 
     let polynomial_size = fourier_bsk.polynomial_size();
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let ciphertext_modulus = lwe_in.ciphertext_modulus();
 
     let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(ggsw_level.0), ciphertext_modulus);
@@ -530,15 +550,7 @@ where
     lwe_msb_bit_to_glev_by_trace128_and_rescale(lwe_in.as_view(), glev_mut_view, fourier_bsk, auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
 
     let mut ggsw = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
 
     let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, ggsw_base_log, ggsw_level);
     convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
@@ -546,7 +558,7 @@ where
     fourier_ggsw
 }
 
-pub fn circuit_bootstrap_by_pksk<Scalar>(
+pub fn circuit_bootstrap_lwe_ciphertext_by_pksk<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     fourier_bsk: FourierLweBootstrapKeyView,
     pksk: &LwePackingKeyswitchKeyView<Scalar>,
@@ -564,7 +576,6 @@ where
 
     let polynomial_size = fourier_bsk.polynomial_size();
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let ciphertext_modulus = lwe_in.ciphertext_modulus();
 
     let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(ggsw_level.0), ciphertext_modulus);
@@ -573,15 +584,7 @@ where
     lwe_msb_bit_to_glev_by_pksk(lwe_in.as_view(), glev_mut_view, fourier_bsk, pksk, ggsw_base_log, ggsw_level, log_lut_count);
 
     let mut ggsw = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
 
     let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, ggsw_base_log, ggsw_level);
     convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
@@ -589,7 +592,7 @@ where
     fourier_ggsw
 }
 
-pub fn circuit_bootstrap_by_trace<Scalar>(
+pub fn circuit_bootstrap_lwe_ciphertext_by_trace<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     fourier_bsk: FourierLweBootstrapKeyView,
     auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
@@ -607,7 +610,6 @@ where
 
     let polynomial_size = fourier_bsk.polynomial_size();
     let glwe_size = fourier_bsk.glwe_size();
-    let glwe_dimension = glwe_size.to_glwe_dimension();
     let ciphertext_modulus = lwe_in.ciphertext_modulus();
 
     let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(ggsw_level.0), ciphertext_modulus);
@@ -616,15 +618,7 @@ where
     lwe_msb_bit_to_glev_by_trace(lwe_in.as_view(), glev_mut_view, fourier_bsk, auto_keys, ggsw_base_log, ggsw_level, log_lut_count);
 
     let mut ggsw = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
 
     let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, ggsw_base_log, ggsw_level);
     convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);

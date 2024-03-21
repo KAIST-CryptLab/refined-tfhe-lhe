@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{automorphism::*, automorphism128::*, ggsw_conv::*, utils::*};
+use hom_trace::{keygen_pbs_without_ksk, automorphism::*, automorphism128::*, ggsw_conv::*, utils::*};
 
 fn main() {
     let lwe_dimension = LweDimension(742);
@@ -168,27 +168,21 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -246,15 +240,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
 
     let now = Instant::now();
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ggsw, &glwe_bit)
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
     let time = now.elapsed();
 
     let max_err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
@@ -268,7 +254,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Circuit Bootstrapping
     let now = Instant::now();
-    let fourier_ggsw = circuit_bootstrap_by_trace_with_mod_switch(
+    let fourier_ggsw = circuit_bootstrap_lwe_ciphertext_by_trace_with_mod_switch(
         lwe_in.as_view(),
         fourier_bsk,
         &auto_keys,
@@ -336,27 +322,21 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -418,15 +398,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
 
     let now = Instant::now();
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ggsw, &glwe_bit)
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
     let time = now.elapsed();
 
     let max_err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
@@ -440,7 +412,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Circuit Bootstrapping
     let now = Instant::now();
-    let fourier_ggsw = circuit_bootstrap_by_trace128_and_rescale(
+    let fourier_ggsw = circuit_bootstrap_lwe_ciphertext_by_trace128_and_rescale(
         lwe_in.as_view(),
         fourier_bsk,
         &auto128_keys,
@@ -507,27 +479,21 @@ l_pksk: {}, B_pksk: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -587,15 +553,7 @@ l_pksk: {}, B_pksk: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
 
     let now = Instant::now();
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ggsw, &glwe_bit)
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
     let time = now.elapsed();
 
     let max_err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
@@ -609,7 +567,7 @@ l_pksk: {}, B_pksk: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Circuit Bootstrapping
     let now = Instant::now();
-    let fourier_ggsw = circuit_bootstrap_by_pksk(
+    let fourier_ggsw = circuit_bootstrap_lwe_ciphertext_by_pksk(
         lwe_in.as_view(),
         fourier_bsk,
         &pksk,
@@ -676,27 +634,21 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -754,15 +706,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
 
     let now = Instant::now();
-    for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-        let glwe_bit = glev.get(col);
-        let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-        for (mut glwe_mask, fourier_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-            add_external_product_assign(&mut glwe_mask, &fourier_ggsw, &glwe_bit)
-        }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-    }
+    switch_scheme(&glev, &mut ggsw, ss_key);
     let time = now.elapsed();
 
     let max_err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
@@ -776,7 +720,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Circuit Bootstrapping
     let now = Instant::now();
-    let fourier_ggsw = circuit_bootstrap_by_trace(
+    let fourier_ggsw = circuit_bootstrap_lwe_ciphertext_by_trace(
         lwe_in.as_view(),
         fourier_bsk,
         &auto_keys,

@@ -1,7 +1,7 @@
 use std::time::Instant;
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{utils::*, pbs::*, automorphism::*, automorphism128::*};
+use hom_trace::{keygen_pbs_without_ksk, utils::*, pbs::*, automorphism::*, automorphism128::*};
 
 fn main() {
     // PBS to GLWE by trace with mod switch
@@ -135,9 +135,22 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
+        pbs_base_log,
+        pbs_level,
+        &mut secret_generator,
+        &mut encryption_generator,
+    );
+    let fourier_bsk = fourier_bsk.as_view();
 
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
@@ -146,25 +159,6 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
         glwe_modular_std_dev,
         &mut encryption_generator,
     );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
-        pbs_base_log,
-        pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
-    let fourier_bsk = fourier_bsk.as_view();
 
     // Set input LWE ciphertext
     let modulus_bit = 4;
@@ -229,9 +223,22 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
+        pbs_base_log,
+        pbs_level,
+        &mut secret_generator,
+        &mut encryption_generator,
+    );
+    let fourier_bsk = fourier_bsk.as_view();
 
     let mut glwe_sk_128 = GlweSecretKey::new_empty_key(0u128, glwe_dimension, polynomial_size);
     for (src, dst) in glwe_sk.as_ref().iter().zip(glwe_sk_128.as_mut().iter_mut()) {
@@ -245,25 +252,6 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
         glwe_modular_std_dev,
         &mut encryption_generator,
     );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
-        pbs_base_log,
-        pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
-    let fourier_bsk = fourier_bsk.as_view();
 
     // Set input LWE ciphertext
     let modulus_bit = 4;
@@ -328,9 +316,22 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_pksk: {}, B_pksk: 2^{}",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
+        pbs_base_log,
+        pbs_level,
+        &mut secret_generator,
+        &mut encryption_generator,
+    );
+    let fourier_bsk = fourier_bsk.as_view();
 
     let pksk = allocate_and_generate_new_lwe_packing_keyswitch_key(
         &big_lwe_sk,
@@ -341,25 +342,6 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_pksk: {}, B_pksk: 2^{}",
         ciphertext_modulus,
         &mut encryption_generator,
     );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
-        pbs_base_log,
-        pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
-    let fourier_bsk = fourier_bsk.as_view();
 
     // Set input LWE ciphertext
     let modulus_bit = 4;
@@ -426,9 +408,22 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+    ) = keygen_pbs_without_ksk(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        glwe_modular_std_dev,
+        pbs_base_log,
+        pbs_level,
+        &mut secret_generator,
+        &mut encryption_generator,
+    );
+    let fourier_bsk = fourier_bsk.as_view();
 
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
@@ -437,25 +432,6 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
         glwe_modular_std_dev,
         &mut encryption_generator,
     );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
-        pbs_base_log,
-        pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
-    let fourier_bsk = fourier_bsk.as_view();
 
     // Set input LWE ciphertext
     let modulus_bit = 4;

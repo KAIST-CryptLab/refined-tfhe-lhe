@@ -1,5 +1,5 @@
 use tfhe::core_crypto::{prelude::*, fft_impl::fft64::c64};
-use hom_trace::{automorphism::*, automorphism128::*, ggsw_conv::*, utils::*};
+use hom_trace::{keygen_pbs, automorphism::*, automorphism128::*, ggsw_conv::*, utils::*};
 use rand::Rng;
 use std::time::{Instant, Duration};
 
@@ -186,37 +186,25 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let _ksk = allocate_and_generate_new_lwe_keyswitch_key(
-        &big_lwe_sk,
-        &small_lwe_sk,
-        ks_base_log,
-        ks_level,
+    let (
+        _big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+        _ksk,
+    ) = keygen_pbs(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
         lwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        ks_base_log,
+        ks_level,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -333,15 +321,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-        }
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
     let mut time_ggsw = now.elapsed();
 
@@ -376,65 +356,13 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Homomorphic LUT
     println!("---- Homomorphic LUT Results ----");
-    let mut time_lut = Duration::ZERO;
-    let now = Instant::now();
-    let accumulator = (0..polynomial_size.0).map(|i| {
-        let table_idx = i / (1 << bit_length);
-        let table = vec_table.get(table_idx).unwrap();
-        table[i % (1 << bit_length)] << 63
-    }).collect::<Vec<u64>>();
-    let accumulator_plaintext = PlaintextList::from_container(accumulator);
-    let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
-    time_lut += now.elapsed();
-
-    let mut vec_acc_err = vec![0u64; bit_length];
-    let mut vec_lut_err = vec![vec![0u64; bit_length]; num_lut];
-    let mut tmp_plain_accumulator = accumulator.clone();
-    let mut tmp_table_input = 0;
-    for (bit_idx, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
-        let now = Instant::now();
-        let mut buf = accumulator.clone();
-        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << bit_idx));
-        glwe_ciphertext_sub_assign(&mut buf, &accumulator);
-        add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
-        time_lut += now.elapsed();
-
-        let cur_input_bit = *input_bits.get(bit_idx).unwrap();
-        tmp_table_input += cur_input_bit << bit_idx;
-        glwe_ciphertext_monic_monomial_div_assign(&mut tmp_plain_accumulator, MonomialDegree((cur_input_bit << bit_idx) as usize));
-
-        let mut dec = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &accumulator, &mut dec);
-
-        let mut correct_acc = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &tmp_plain_accumulator, &mut correct_acc);
-
-        let mut max_err = 0u64;
-        for i in 0..polynomial_size.0 {
-            let abs_err = {
-                let decrypted = *dec.get(i).0;
-                let correct_val = *correct_acc.get(i).0;
-                let d0 = decrypted.wrapping_sub(correct_val);
-                let d1 = correct_val.wrapping_sub(decrypted);
-                std::cmp::min(d0, d1)
-            };
-            max_err = std::cmp::max(max_err, abs_err);
-        }
-        vec_acc_err[bit_idx] = max_err;
-
-        for j in 0..num_lut {
-            let mut lwe_out = LweCiphertext::new(0u64, fourier_bsk.output_lwe_dimension().to_lwe_size(), ciphertext_modulus);
-            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(j * (1 << bit_length)));
-
-            let tmp_table_output = vec_table.get(j).unwrap()[tmp_table_input as usize];
-            let (decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe_out, tmp_table_output, 1 << 63);
-            if decoded != tmp_table_output {
-                println!("LUT fails");
-                return;
-            }
-            vec_lut_err[j][bit_idx] = abs_err;
-        }
-    }
+    let (time_lut, vec_acc_err, vec_lut_err) = homomorphic_lut(
+        &vec_table,
+        &input_bits,
+        fourier_ggsw_bit_list.as_view(),
+        &glwe_sk,
+        ciphertext_modulus,
+    );
 
     print!("Acc");
     for i in 0..bit_length {
@@ -493,37 +421,25 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let _ksk = allocate_and_generate_new_lwe_keyswitch_key(
-        &big_lwe_sk,
-        &small_lwe_sk,
-        ks_base_log,
-        ks_level,
+    let (
+        _big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+        _ksk,
+    ) = keygen_pbs(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
         lwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        ks_base_log,
+        ks_level,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -644,15 +560,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-        }
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
     let mut time_ggsw = now.elapsed();
 
@@ -687,65 +595,13 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Homomorphic LUT
     println!("---- Homomorphic LUT Results ----");
-    let mut time_lut = Duration::ZERO;
-    let now = Instant::now();
-    let accumulator = (0..polynomial_size.0).map(|i| {
-        let table_idx = i / (1 << bit_length);
-        let table = vec_table.get(table_idx).unwrap();
-        table[i % (1 << bit_length)] << 63
-    }).collect::<Vec<u64>>();
-    let accumulator_plaintext = PlaintextList::from_container(accumulator);
-    let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
-    time_lut += now.elapsed();
-
-    let mut vec_acc_err = vec![0u64; bit_length];
-    let mut vec_lut_err = vec![vec![0u64; bit_length]; num_lut];
-    let mut tmp_plain_accumulator = accumulator.clone();
-    let mut tmp_table_input = 0;
-    for (bit_idx, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
-        let now = Instant::now();
-        let mut buf = accumulator.clone();
-        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << bit_idx));
-        glwe_ciphertext_sub_assign(&mut buf, &accumulator);
-        add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
-        time_lut += now.elapsed();
-
-        let cur_input_bit = *input_bits.get(bit_idx).unwrap();
-        tmp_table_input += cur_input_bit << bit_idx;
-        glwe_ciphertext_monic_monomial_div_assign(&mut tmp_plain_accumulator, MonomialDegree((cur_input_bit << bit_idx) as usize));
-
-        let mut dec = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &accumulator, &mut dec);
-
-        let mut correct_acc = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &tmp_plain_accumulator, &mut correct_acc);
-
-        let mut max_err = 0u64;
-        for i in 0..polynomial_size.0 {
-            let abs_err = {
-                let decrypted = *dec.get(i).0;
-                let correct_val = *correct_acc.get(i).0;
-                let d0 = decrypted.wrapping_sub(correct_val);
-                let d1 = correct_val.wrapping_sub(decrypted);
-                std::cmp::min(d0, d1)
-            };
-            max_err = std::cmp::max(max_err, abs_err);
-        }
-        vec_acc_err[bit_idx] = max_err;
-
-        for j in 0..num_lut {
-            let mut lwe_out = LweCiphertext::new(0u64, fourier_bsk.output_lwe_dimension().to_lwe_size(), ciphertext_modulus);
-            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(j * (1 << bit_length)));
-
-            let tmp_table_output = vec_table.get(j).unwrap()[tmp_table_input as usize];
-            let (decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe_out, tmp_table_output, 1 << 63);
-            if decoded != tmp_table_output {
-                println!("LUT fails");
-                return;
-            }
-            vec_lut_err[j][bit_idx] = abs_err;
-        }
-    }
+    let (time_lut, vec_acc_err, vec_lut_err) = homomorphic_lut(
+        &vec_table,
+        &input_bits,
+        fourier_ggsw_bit_list.as_view(),
+        &glwe_sk,
+        ciphertext_modulus,
+    );
 
     print!("Acc");
     for i in 0..bit_length {
@@ -804,37 +660,25 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let _ksk = allocate_and_generate_new_lwe_keyswitch_key(
-        &big_lwe_sk,
-        &small_lwe_sk,
-        ks_base_log,
-        ks_level,
+    let (
+        big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+        _ksk,
+    ) = keygen_pbs(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
         lwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        ks_base_log,
+        ks_level,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -954,15 +798,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-        }
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
     let mut time_ggsw = now.elapsed();
 
@@ -997,65 +833,13 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Homomorphic LUT
     println!("---- Homomorphic LUT Results ----");
-    let mut time_lut = Duration::ZERO;
-    let now = Instant::now();
-    let accumulator = (0..polynomial_size.0).map(|i| {
-        let table_idx = i / (1 << bit_length);
-        let table = vec_table.get(table_idx).unwrap();
-        table[i % (1 << bit_length)] << 63
-    }).collect::<Vec<u64>>();
-    let accumulator_plaintext = PlaintextList::from_container(accumulator);
-    let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
-    time_lut += now.elapsed();
-
-    let mut vec_acc_err = vec![0u64; bit_length];
-    let mut vec_lut_err = vec![vec![0u64; bit_length]; num_lut];
-    let mut tmp_plain_accumulator = accumulator.clone();
-    let mut tmp_table_input = 0;
-    for (bit_idx, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
-        let now = Instant::now();
-        let mut buf = accumulator.clone();
-        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << bit_idx));
-        glwe_ciphertext_sub_assign(&mut buf, &accumulator);
-        add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
-        time_lut += now.elapsed();
-
-        let cur_input_bit = *input_bits.get(bit_idx).unwrap();
-        tmp_table_input += cur_input_bit << bit_idx;
-        glwe_ciphertext_monic_monomial_div_assign(&mut tmp_plain_accumulator, MonomialDegree((cur_input_bit << bit_idx) as usize));
-
-        let mut dec = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &accumulator, &mut dec);
-
-        let mut correct_acc = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &tmp_plain_accumulator, &mut correct_acc);
-
-        let mut max_err = 0u64;
-        for i in 0..polynomial_size.0 {
-            let abs_err = {
-                let decrypted = *dec.get(i).0;
-                let correct_val = *correct_acc.get(i).0;
-                let d0 = decrypted.wrapping_sub(correct_val);
-                let d1 = correct_val.wrapping_sub(decrypted);
-                std::cmp::min(d0, d1)
-            };
-            max_err = std::cmp::max(max_err, abs_err);
-        }
-        vec_acc_err[bit_idx] = max_err;
-
-        for j in 0..num_lut {
-            let mut lwe_out = LweCiphertext::new(0u64, fourier_bsk.output_lwe_dimension().to_lwe_size(), ciphertext_modulus);
-            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(j * (1 << bit_length)));
-
-            let tmp_table_output = vec_table.get(j).unwrap()[tmp_table_input as usize];
-            let (decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe_out, tmp_table_output, 1 << 63);
-            if decoded != tmp_table_output {
-                println!("LUT fails");
-                return;
-            }
-            vec_lut_err[j][bit_idx] = abs_err;
-        }
-    }
+    let (time_lut, vec_acc_err, vec_lut_err) = homomorphic_lut(
+        &vec_table,
+        &input_bits,
+        fourier_ggsw_bit_list,
+        &glwe_sk,
+        ciphertext_modulus,
+    );
 
     print!("Acc");
     for i in 0..bit_length {
@@ -1114,37 +898,25 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
 
     // Generate keys
-    let small_lwe_sk = LweSecretKey::generate_new_binary(lwe_dimension, &mut secret_generator);
-    let glwe_sk = GlweSecretKey::generate_new_binary(glwe_dimension, polynomial_size, &mut secret_generator);
-    let big_lwe_sk = glwe_sk.clone().into_lwe_secret_key();
-
-    let _ksk = allocate_and_generate_new_lwe_keyswitch_key(
-        &big_lwe_sk,
-        &small_lwe_sk,
-        ks_base_log,
-        ks_level,
+    let (
+        _big_lwe_sk,
+        glwe_sk,
+        small_lwe_sk,
+        fourier_bsk,
+        _ksk,
+    ) = keygen_pbs(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
         lwe_modular_std_dev,
-        ciphertext_modulus,
-        &mut encryption_generator,
-    );
-
-    let std_bootstrap_key = allocate_and_generate_new_lwe_bootstrap_key(
-        &small_lwe_sk,
-        &glwe_sk,
+        glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        glwe_modular_std_dev,
-        ciphertext_modulus,
+        ks_base_log,
+        ks_level,
+        &mut secret_generator,
         &mut encryption_generator,
     );
-    let mut fourier_bsk = FourierLweBootstrapKey::new(
-        std_bootstrap_key.input_lwe_dimension(),
-        std_bootstrap_key.glwe_size(),
-        std_bootstrap_key.polynomial_size(),
-        std_bootstrap_key.decomposition_base_log(),
-        std_bootstrap_key.decomposition_level_count(),
-    );
-    convert_standard_lwe_bootstrap_key_to_fourier(&std_bootstrap_key, &mut fourier_bsk);
     let fourier_bsk = fourier_bsk.as_view();
 
     let ss_key = generate_scheme_switching_key(
@@ -1261,15 +1033,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         ciphertext_modulus,
     );
     for (mut ggsw, glev) in ggsw_bit_list.iter_mut().zip(vec_glev.iter()) {
-        for (col, mut glwe_list) in ggsw.as_mut_glwe_list().chunks_exact_mut(glwe_size.0).enumerate() {
-            let glwe_bit = glev.get(col);
-            let (mut glwe_mask_list, mut glwe_body_list) = glwe_list.split_at_mut(glwe_dimension.0);
-
-            for (mut glwe_mask, fourier_ss_key) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
-                add_external_product_assign(&mut glwe_mask, &fourier_ss_key, &glwe_bit);
-            }
-            glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
-        }
+        switch_scheme(&glev, &mut ggsw, ss_key);
     }
     let mut time_ggsw = now.elapsed();
 
@@ -1304,65 +1068,13 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // Homomorphic LUT
     println!("---- Homomorphic LUT Results ----");
-    let mut time_lut = Duration::ZERO;
-    let now = Instant::now();
-    let accumulator = (0..polynomial_size.0).map(|i| {
-        let table_idx = i / (1 << bit_length);
-        let table = vec_table.get(table_idx).unwrap();
-        table[i % (1 << bit_length)] << 63
-    }).collect::<Vec<u64>>();
-    let accumulator_plaintext = PlaintextList::from_container(accumulator);
-    let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
-    time_lut += now.elapsed();
-
-    let mut vec_acc_err = vec![0u64; bit_length];
-    let mut vec_lut_err = vec![vec![0u64; bit_length]; num_lut];
-    let mut tmp_plain_accumulator = accumulator.clone();
-    let mut tmp_table_input = 0;
-    for (bit_idx, fourier_ggsw_bit) in fourier_ggsw_bit_list.as_view().into_ggsw_iter().into_iter().enumerate() {
-        let now = Instant::now();
-        let mut buf = accumulator.clone();
-        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << bit_idx));
-        glwe_ciphertext_sub_assign(&mut buf, &accumulator);
-        add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
-        time_lut += now.elapsed();
-
-        let cur_input_bit = *input_bits.get(bit_idx).unwrap();
-        tmp_table_input += cur_input_bit << bit_idx;
-        glwe_ciphertext_monic_monomial_div_assign(&mut tmp_plain_accumulator, MonomialDegree((cur_input_bit << bit_idx) as usize));
-
-        let mut dec = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &accumulator, &mut dec);
-
-        let mut correct_acc = PlaintextList::new(0u64, PlaintextCount(polynomial_size.0));
-        decrypt_glwe_ciphertext(&glwe_sk, &tmp_plain_accumulator, &mut correct_acc);
-
-        let mut max_err = 0u64;
-        for i in 0..polynomial_size.0 {
-            let abs_err = {
-                let decrypted = *dec.get(i).0;
-                let correct_val = *correct_acc.get(i).0;
-                let d0 = decrypted.wrapping_sub(correct_val);
-                let d1 = correct_val.wrapping_sub(decrypted);
-                std::cmp::min(d0, d1)
-            };
-            max_err = std::cmp::max(max_err, abs_err);
-        }
-        vec_acc_err[bit_idx] = max_err;
-
-        for j in 0..num_lut {
-            let mut lwe_out = LweCiphertext::new(0u64, fourier_bsk.output_lwe_dimension().to_lwe_size(), ciphertext_modulus);
-            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(j * (1 << bit_length)));
-
-            let tmp_table_output = vec_table.get(j).unwrap()[tmp_table_input as usize];
-            let (decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe_out, tmp_table_output, 1 << 63);
-            if decoded != tmp_table_output {
-                println!("LUT fails");
-                return;
-            }
-            vec_lut_err[j][bit_idx] = abs_err;
-        }
-    }
+    let (time_lut, vec_acc_err, vec_lut_err) = homomorphic_lut(
+        &vec_table,
+        &input_bits,
+        fourier_ggsw_bit_list.as_view(),
+        &glwe_sk,
+        ciphertext_modulus,
+    );
 
     print!("Acc");
     for i in 0..bit_length {
@@ -1382,4 +1094,88 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     println!("Time LWEtoGLEV:  {} ms", time_glev.as_micros() as f64 / 1000f64);
     println!("Time GLEVtoGGSW: {} ms", time_ggsw.as_micros() as f64 / 1000f64);
     println!("Time LUT:        {} ms", time_lut.as_micros() as f64 / 1000f64);
+}
+
+fn homomorphic_lut<Scalar, C>(
+    vec_table: &Vec<Vec<Scalar>>,
+    input_bits: &Vec<Scalar>,
+    fourier_ggsw_list: FourierGgswCiphertextList<C>,
+    glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
+    ciphertext_modulus: CiphertextModulus::<Scalar>,
+) -> (Duration, Vec<Scalar>, Vec<Vec<Scalar>>)
+where
+    Scalar: UnsignedTorus + CastInto<usize>,
+    C: Container<Element=c64>,
+{
+    let lwe_secret_key = glwe_secret_key.clone().into_lwe_secret_key();
+    let lwe_size = lwe_secret_key.lwe_dimension().to_lwe_size();
+
+    let bit_length = input_bits.len();
+    assert_eq!(bit_length, fourier_ggsw_list.as_view().into_ggsw_iter().count());
+
+    let glwe_size = fourier_ggsw_list.glwe_size();
+    let polynomial_size = fourier_ggsw_list.polynomial_size().0;
+    assert!(polynomial_size >= (1 << bit_length), "not enough polynomial size for homomorphic_lut");
+
+    let num_lut = polynomial_size / (1 << bit_length);
+
+    let mut time = Duration::ZERO;
+    let now = Instant::now();
+    let accumulator = (0..polynomial_size).map(|i| {
+        let table_idx = i / (1 << bit_length);
+        let table = vec_table.get(table_idx).unwrap();
+        table[i % (1 << bit_length)] << (Scalar::BITS - 1)
+    }).collect::<Vec<Scalar>>();
+    let accumulator_plaintext = PlaintextList::from_container(accumulator);
+    let mut accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(glwe_size, &accumulator_plaintext, ciphertext_modulus);
+
+    let mut tmp_plain_accumulator = accumulator.clone();
+    let mut tmp_table_input = 0usize;
+    time += now.elapsed();
+
+    let mut vec_acc_err = vec![Scalar::ZERO; bit_length];
+    let mut vec_lut_err = vec![vec![Scalar:: ZERO; bit_length]; num_lut];
+
+    for (bit_idx, fourier_ggsw_bit) in fourier_ggsw_list.as_view().into_ggsw_iter().into_iter().enumerate() {
+        let now = Instant::now();
+        let mut buf = accumulator.clone();
+        glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(1 << bit_idx));
+        glwe_ciphertext_sub_assign(&mut buf, &accumulator);
+        add_external_product_assign(&mut accumulator, &fourier_ggsw_bit, &buf);
+        time += now.elapsed();
+
+        let cur_input_bit: usize = (*input_bits.get(bit_idx).unwrap()).cast_into();
+        tmp_table_input += cur_input_bit << bit_idx;
+        glwe_ciphertext_monic_monomial_div_assign(&mut tmp_plain_accumulator, MonomialDegree(cur_input_bit << bit_idx));
+
+        let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size));
+        decrypt_glwe_ciphertext(&glwe_secret_key, &accumulator, &mut dec);
+
+        let mut correct_acc = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size));
+        decrypt_glwe_ciphertext(&glwe_secret_key, &tmp_plain_accumulator, &mut correct_acc);
+
+        let mut max_err = Scalar::ZERO;
+        for i in 0..polynomial_size {
+            let abs_err = {
+                let decrypted = *dec.get(i).0;
+                let correct_val = *correct_acc.get(i).0;
+                let d0 = decrypted.wrapping_sub(correct_val);
+                let d1 = correct_val.wrapping_sub(decrypted);
+                std::cmp::min(d0, d1)
+            };
+            max_err = std::cmp::max(max_err, abs_err);
+        }
+        vec_acc_err[bit_idx] = max_err;
+
+        for j in 0..num_lut {
+            let mut lwe_out = LweCiphertext::new(Scalar::ZERO, lwe_size, ciphertext_modulus);
+            extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(j << bit_length));
+
+            let tmp_table_output = vec_table.get(j).unwrap()[tmp_table_input as usize];
+            let (_decoded, abs_err) = get_val_and_abs_err(&lwe_secret_key, &lwe_out, tmp_table_output, Scalar::ONE << (Scalar::BITS - 1));
+            vec_lut_err[j][bit_idx] = abs_err;
+        }
+    }
+
+    (time, vec_acc_err, vec_lut_err)
 }
