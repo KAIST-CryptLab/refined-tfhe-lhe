@@ -4,22 +4,23 @@ use tfhe::core_crypto::prelude::*;
 use hom_trace::{mod_switch::*, automorphism::*};
 
 fn main() {
-    type Scalar = u64;
+    type Scalar = u32;
+    let polynomial_size = PolynomialSize(512);
+    let glwe_dimension = GlweDimension(2);
+    let glwe_modular_std_dev = StandardDev(0.00000004990272175010415);
+    let auto_base_log = DecompositionBaseLog(5);
+    let auto_level = DecompositionLevelCount(4);
 
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(15);
-    let auto_level = DecompositionLevelCount(2);
     println!("PolynomialSize: {}, GlweDim: {}, AutoBaseLog: {}, AutoLevel: {}",
         polynomial_size.0, glwe_dimension.0, auto_base_log.0, auto_level.0,
     );
 
+    type LargeScalar = u64;
     let log_polynomial_size = polynomial_size.0.ilog2() as usize;
-    let log_small_q = Scalar::BITS as usize - log_polynomial_size;
+    let log_large_q = Scalar::BITS as usize + log_polynomial_size;
 
-    let small_ciphertext_modulus = CiphertextModulus::<u64>::try_new_power_of_2(log_small_q).unwrap();
-    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
+    let large_ciphertext_modulus = CiphertextModulus::<LargeScalar>::try_new_power_of_2(log_large_q).unwrap();
 
     // Set random generators and buffers
     let mut boxed_seeder = new_seeder();
@@ -68,21 +69,24 @@ fn main() {
     println!("Fresh GLWE ctxt err: {:.2} bits", (max_err as f64).log2());
 
     let now = Instant::now();
-    // Mod Down
-    let mut ct_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, small_ciphertext_modulus);
-    glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two(&ct, &mut ct_mod_down);
-
     // Mod Up
-    let mut ct_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-    glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&ct_mod_down, &mut ct_mod_up);
+    let mut ct_mod_up = GlweCiphertext::new(LargeScalar::ZERO, glwe_size, polynomial_size, large_ciphertext_modulus);
+    glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&ct, &mut ct_mod_up);
 
     // Trace
-    let out = trace(ct_mod_up.as_view(), &auto_keys);
+    let mut out = trace(ct_mod_up.as_view(), &auto_keys);
+
+    glwe_ciphertext_cleartext_mul(&mut out, &ct_mod_up, Cleartext(polynomial_size.0 as LargeScalar));
+
+    // ModDown
+    let mut ct_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    glwe_ciphertext_rescale_from_non_native_power_of_two_to_native(&out, &mut ct_mod_down);
     let time = now.elapsed();
+
 
     // Decryption
     let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));
-    decrypt_glwe_ciphertext(&glwe_sk, &out, &mut dec);
+    decrypt_glwe_ciphertext(&glwe_sk, &ct_mod_down, &mut dec);
 
     let mut max_err = Scalar::ZERO;
     for i in 0..polynomial_size.0 {
@@ -95,7 +99,7 @@ fn main() {
         };
         max_err = std::cmp::max(max_err, abs_err);
     }
-    println!("\nModDown -> ModUp -> Trace");
+    println!("\nModUp -> Trace -> ModDown");
     println!("- Time: {} ms", time.as_micros() as f64 / 1000f64);
     println!("- Err : {:.2} bits", (max_err as f64).log2());
 }
