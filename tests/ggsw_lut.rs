@@ -510,7 +510,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
             polynomial_size,
             ciphertext_modulus,
         );
-        lwe_msb_bit_to_glev_by_trace128_and_rescale(
+        lwe_msb_bit_to_glev_by_trace128_with_mod_switch(
             lwe_in.as_view(),
             glev_mut_view,
             fourier_bsk,

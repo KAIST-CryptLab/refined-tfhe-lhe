@@ -71,7 +71,7 @@ fn main() {
     let now = Instant::now();
     // Mod Up
     let mut ct_mod_up = GlweCiphertext::new(LargeScalar::ZERO, glwe_size, polynomial_size, large_ciphertext_modulus);
-    glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&ct, &mut ct_mod_up);
+    glwe_ciphertext_mod_up_from_native_to_non_native_power_of_two(&ct, &mut ct_mod_up);
 
     // Trace
     let mut out = trace(ct_mod_up.as_view(), &auto_keys);
@@ -80,7 +80,7 @@ fn main() {
 
     // ModDown
     let mut ct_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-    glwe_ciphertext_rescale_from_non_native_power_of_two_to_native(&out, &mut ct_mod_down);
+    glwe_ciphertext_mod_down_from_non_native_power_of_two_to_native(&out, &mut ct_mod_down);
     let time = now.elapsed();
 
 

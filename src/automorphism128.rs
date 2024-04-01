@@ -4,7 +4,7 @@ use tfhe::core_crypto::{
     prelude::*,
     fft_impl::fft128,
 };
-use crate::{glwe_ciphertext_rescale_from_non_native_power_of_two_to_native, utils::*};
+use crate::{glwe_ciphertext_mod_down_from_non_native_power_of_two_to_native, utils::*};
 
 // The following codes generalize rlweExpand
 // from https://github.com/KULeuven-COSIC/SortingHat
@@ -253,7 +253,7 @@ pub fn trace128_and_rescale_to_native<Scalar: UnsignedInteger + CastFrom<u128>>(
 
     let trace = trace128(glwe_in, auto_key_map);
     let mut out = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), CiphertextModulus::<Scalar>::new_native());
-    glwe_ciphertext_rescale_from_non_native_power_of_two_to_native(&trace, &mut out);
+    glwe_ciphertext_mod_down_from_non_native_power_of_two_to_native(&trace, &mut out);
 
     out
 }

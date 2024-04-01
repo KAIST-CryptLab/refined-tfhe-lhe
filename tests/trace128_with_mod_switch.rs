@@ -60,7 +60,7 @@ fn main() {
     let now = Instant::now();
     // Mod Raise
     let mut ct_large_q = GlweCiphertext::new(LargeQ::ZERO, glwe_size, polynomial_size, large_ciphertext_modulus);
-    glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&ct, &mut ct_large_q);
+    glwe_ciphertext_mod_up_from_native_to_non_native_power_of_two(&ct, &mut ct_large_q);
 
     // Trace
     let out = trace128_and_rescale_to_native(ct_large_q.as_view(), &auto_keys);

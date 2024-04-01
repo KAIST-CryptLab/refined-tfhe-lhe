@@ -26,15 +26,15 @@ name = "trace"
 harness = false
 
 [[test]]
-name = "trace128_and_rescale"
-harness = false
-
-[[test]]
 name = "trace_with_mod_switch_a"
 harness = false
 
 [[test]]
 name = "trace_with_mod_switch_b"
+harness = false
+
+[[test]]
+name = "trace128_with_mod_switch"
 harness = false
 
 [[test]]

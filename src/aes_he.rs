@@ -455,7 +455,7 @@ fn he_sbox_eval_by_trace128_and_rescale<Scalar, InCont, OutCont, KskCont>(
             ciphertext_modulus,
         );
         keyswitch_lwe_ciphertext(ksk, &input_bit, &mut input_bit_ks);
-        lwe_msb_bit_to_glev_by_trace128_and_rescale(
+        lwe_msb_bit_to_glev_by_trace128_with_mod_switch(
             input_bit_ks.as_view(),
             glev_mut_view,
             fourier_bsk,

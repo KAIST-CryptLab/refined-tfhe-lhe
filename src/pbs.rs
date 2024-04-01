@@ -137,15 +137,9 @@ pub fn pbs_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCont, AccCo
 
     let out = trace(acc_mod_up.as_view(), auto_keys);
     glwe_ciphertext_clone_from(output.as_mut_view(), out.as_view());
-
-    // let mut buf_mod_raise = GlweCiphertext::new(0u128, output.glwe_size(), output.polynomial_size(), large_ciphertext_modulus);
-    // glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&local_accumulator, &mut buf_mod_raise);
-
-    // let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
-    // glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());
 }
 
-pub fn pbs_to_glwe_by_trace128_and_rescale<Scalar, InputCont, OutputCont, AccCont>(
+pub fn pbs_to_glwe_by_trace128_with_mod_switch<Scalar, InputCont, OutputCont, AccCont>(
     input: &LweCiphertext<InputCont>,
     output: &mut GlweCiphertext<OutputCont>,
     accumulator: &GlweCiphertext<AccCont>,
@@ -203,7 +197,7 @@ pub fn pbs_to_glwe_by_trace128_and_rescale<Scalar, InputCont, OutputCont, AccCon
     let large_ciphertext_modulus = CiphertextModulus::<u128>::try_new_power_of_2(log_large_q).unwrap();
 
     let mut buf_mod_raise = GlweCiphertext::new(0u128, output.glwe_size(), output.polynomial_size(), large_ciphertext_modulus);
-    glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&local_accumulator, &mut buf_mod_raise);
+    glwe_ciphertext_mod_up_from_native_to_non_native_power_of_two(&local_accumulator, &mut buf_mod_raise);
 
     let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
     glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());

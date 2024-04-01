@@ -222,7 +222,7 @@ pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
 }
 
 
-pub fn lwe_msb_bit_to_glev_by_trace128_and_rescale<Scalar>(
+pub fn lwe_msb_bit_to_glev_by_trace128_with_mod_switch<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
     mut glev: GlweCiphertextListMutView<Scalar>,
     fourier_bsk: FourierLweBootstrapKeyView,
@@ -307,7 +307,7 @@ pub fn lwe_msb_bit_to_glev_by_trace128_and_rescale<Scalar>(
             glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
 
             let mut buf_mod_raise = GlweCiphertext::new(0u128, glwe_size, polynomial_size, large_ciphertext_modulus);
-            glwe_ciphertext_mod_raise_from_native_to_non_native_power_of_two(&buf, &mut buf_mod_raise);
+            glwe_ciphertext_mod_up_from_native_to_non_native_power_of_two(&buf, &mut buf_mod_raise);
 
             let buf = trace128_and_rescale_to_native(buf_mod_raise.as_view(), auto128_keys);
             glwe_ciphertext_clone_from(glwe.as_mut_view(), buf.as_view());
@@ -547,7 +547,7 @@ where
     let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(ggsw_level.0), ciphertext_modulus);
     let glev_mut_view = GlweCiphertextListMutView::from_container(glev.as_mut(), glwe_size, polynomial_size, ciphertext_modulus);
 
-    lwe_msb_bit_to_glev_by_trace128_and_rescale(lwe_in.as_view(), glev_mut_view, fourier_bsk, auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
+    lwe_msb_bit_to_glev_by_trace128_with_mod_switch(lwe_in.as_view(), glev_mut_view, fourier_bsk, auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
 
     let mut ggsw = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ggsw_base_log, ggsw_level, ciphertext_modulus);
     switch_scheme(&glev, &mut ggsw, ss_key);

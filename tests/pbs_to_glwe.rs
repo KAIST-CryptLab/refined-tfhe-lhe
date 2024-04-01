@@ -270,7 +270,7 @@ n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_auto: {}, B_auto: 2^{}",
     let mut glwe_out = GlweCiphertext::new(0u64, glwe_size, polynomial_size, ciphertext_modulus);
 
     let now = Instant::now();
-    pbs_to_glwe_by_trace128_and_rescale(&lwe_in, &mut glwe_out, &accumulator, fourier_bsk, &auto128_keys);
+    pbs_to_glwe_by_trace128_with_mod_switch(&lwe_in, &mut glwe_out, &accumulator, fourier_bsk, &auto128_keys);
     let time = now.elapsed();
     println!("Time: {} ms", time.as_micros() as f64 / 1000f64);
 

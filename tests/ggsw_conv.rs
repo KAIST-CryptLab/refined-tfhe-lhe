@@ -374,7 +374,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let glev_mut_view = GlweCiphertextListMutView::from_container(glev.as_mut(), glwe_size, polynomial_size, ciphertext_modulus);
 
     let now = Instant::now();
-    lwe_msb_bit_to_glev_by_trace128_and_rescale(lwe_in.as_view(), glev_mut_view, fourier_bsk, &auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
+    lwe_msb_bit_to_glev_by_trace128_with_mod_switch(lwe_in.as_view(), glev_mut_view, fourier_bsk, &auto128_keys, ggsw_base_log, ggsw_level, log_lut_count);
     let time = now.elapsed();
     println!("LWE to GLEV: {} ms", time.as_micros() as f64 / 1000f64);
 
