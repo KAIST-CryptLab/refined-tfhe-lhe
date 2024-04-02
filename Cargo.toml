@@ -13,6 +13,9 @@ dyn-stack = { version = "0.9" }
 aes = { version = "*" }
 rayon = { version = "*", optional = true }
 
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+
 [[test]]
 name = "fourier_poly_mult"
 harness = false
@@ -67,6 +70,10 @@ harness = false
 
 [[test]]
 name = "aes_eval"
+harness = false
+
+[[bench]]
+name = "bench_lwe_to_glwe"
 harness = false
 
 [features]
