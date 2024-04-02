@@ -1,6 +1,5 @@
 use tfhe::core_crypto::{
-    prelude::*,
-    algorithms::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign,
+    algorithms::{polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign, slice_algorithms::slice_wrapping_opposite_assign}, prelude::*
 };
 
 /* -------- Error Tracking -------- */
@@ -142,6 +141,41 @@ pub fn get_max_err_ggsw_bit<Scalar: UnsignedTorus>(
     }
 
     max_err
+}
+
+/* -------- LWE to GLWE -------- */
+pub fn convert_lwe_to_glwe_const<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut GlweCiphertext<OutputCont>,
+) where
+    Scalar: UnsignedInteger,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    let lwe_dimension = input.lwe_size().to_lwe_dimension().0;
+    let glwe_dimension = output.glwe_size().to_glwe_dimension().0;
+    let polynomial_size = output.polynomial_size().0;
+
+    assert_eq!(lwe_dimension, glwe_dimension * polynomial_size);
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+
+    let (lwe_mask, lwe_body) = input.get_mask_and_body();
+    let (mut glwe_mask, mut glwe_body) = output.get_mut_mask_and_body();
+
+    // Set body
+    *glwe_body.as_mut().get_mut(0).unwrap() = *lwe_body.data;
+
+    // Set mask
+    let lwe_mask = lwe_mask.as_ref();
+    let glwe_mask = glwe_mask.as_mut();
+    for (glwe_poly, lwe_poly) in glwe_mask.chunks_exact_mut(polynomial_size)
+        .zip(lwe_mask.chunks_exact(polynomial_size))
+    {
+        glwe_poly.clone_from_slice(lwe_poly);
+        glwe_poly.reverse();
+        slice_wrapping_opposite_assign(&mut glwe_poly[0..(polynomial_size - 1)]);
+        glwe_poly.rotate_left(polynomial_size - 1);
+    }
 }
 
 /* -------- LWE List -------- */

@@ -38,6 +38,10 @@ name = "trace128_with_mod_switch"
 harness = false
 
 [[test]]
+name = "lwe_to_glwe_const"
+harness = false
+
+[[test]]
 name = "pksk"
 harness = false
 
