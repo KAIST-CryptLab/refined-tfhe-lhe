@@ -10,7 +10,7 @@ use tfhe::core_crypto::{
         },
     },
 };
-use crate::{utils::*, mod_switch::*, automorphism::*, automorphism128::*, pbs::*};
+use crate::{utils::*, mod_switch::*, automorphism::*, automorphism128::*, pbs::*, glwe_conv::*};
 
 pub fn generate_scheme_switching_key<Scalar, G>(
     glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
@@ -144,10 +144,6 @@ pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
     let half_box_size = polynomial_size.0 / 2;
     let ciphertext_modulus = lwe_in.ciphertext_modulus();
 
-    let log_polynomial_size = polynomial_size.0.ilog2() as usize;
-    let log_small_q = Scalar::BITS as usize - log_polynomial_size;
-    let small_ciphertext_modulus = CiphertextModulus::<Scalar>::try_new_power_of_2(log_small_q).unwrap();
-
     let lut_count = 1 << log_lut_count.0;
     for (acc_idx, mut glev_chunk) in glev.chunks_mut(lut_count).enumerate() {
         let mut accumulator = (0..polynomial_size.0).map(|i| {
@@ -209,14 +205,7 @@ pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
             glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(k));
             glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
 
-            let mut buf_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, small_ciphertext_modulus);
-            glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two(&buf, &mut buf_mod_down);
-
-            let mut buf_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-            glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&buf_mod_down, &mut buf_mod_up);
-
-            let out = trace(buf_mod_up.as_view(), auto_keys);
-            glwe_ciphertext_clone_from(glwe.as_mut_view(), out.as_view());
+            trace_with_mod_switch(&buf, &mut glwe, auto_keys);
         }
     }
 }

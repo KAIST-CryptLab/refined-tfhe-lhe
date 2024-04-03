@@ -230,3 +230,11 @@ pub fn trace<Scalar: UnsignedTorus + Sync + Send>(
 
     out
 }
+
+pub fn trace_assign<Scalar: UnsignedTorus + Sync + Send>(
+    mut glwe_in: GlweCiphertextMutView<Scalar>,
+    auto_key_map: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+) {
+    let out = trace(glwe_in.as_view(), auto_key_map);
+    glwe_in.as_mut().clone_from_slice(out.as_ref());
+}

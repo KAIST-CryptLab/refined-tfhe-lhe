@@ -1,17 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use std::collections::HashMap;
-use aligned_vec::ABox;
-use tfhe::core_crypto::{
-    fft_impl::fft64::c64, prelude::*
-};
+use tfhe::core_crypto::prelude::*;
 use hom_trace::{
-    utils::convert_lwe_to_glwe_const,
-    mod_switch::*,
-    automorphism::{
-        AutomorphKey,
-        trace,
-        gen_all_auto_keys,
-    },
+    glwe_conv::*,
+    automorphism::gen_all_auto_keys,
 };
 
 struct Param<Scalar: UnsignedInteger> {
@@ -103,7 +94,7 @@ fn criterion_benchmark_trace_with_mod_switch(c: &mut Criterion) {
                 id,
             ),
             |b| b.iter(
-                || lwe_to_glwe_by_trace_with_mod_switch(
+                || convert_lwe_to_glwe_by_trace_with_mod_switch(
                     black_box(&lwe),
                     black_box(&mut glwe),
                     black_box(&auto_keys),
@@ -248,37 +239,4 @@ fn criterion_benchmark_pksk(c: &mut Criterion) {
             polynomial_size.0, glwe_dimension.0, pksk_level.0, pksk_base_log.0, max_err
         );
     }
-}
-
-fn lwe_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCont>(
-    input: &LweCiphertext<InputCont>,
-    output: &mut GlweCiphertext<OutputCont>,
-    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
-) where
-    Scalar: UnsignedTorus,
-    InputCont: Container<Element=Scalar>,
-    OutputCont: ContainerMut<Element=Scalar>,
-{
-    let glwe_size = output.glwe_size();
-    let polynomial_size = output.polynomial_size();
-    let ciphertext_modulus = input.ciphertext_modulus();
-
-    let log_polynomial_size = polynomial_size.0.ilog2() as usize;
-    let log_small_q = Scalar::BITS as usize - log_polynomial_size;
-    let small_ciphertext_modulus = CiphertextModulus::<Scalar>::try_new_power_of_2(log_small_q).unwrap();
-
-    // LWEtoGLWEConst
-    convert_lwe_to_glwe_const(input, output);
-
-    // ModDown
-    let mut buf_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, small_ciphertext_modulus);
-    glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two(&output, &mut buf_mod_down);
-
-    // ModUp
-    let mut buf_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-    glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&buf_mod_down, &mut buf_mod_up);
-
-    // Trace
-    let buf = trace(buf_mod_up.as_view(), auto_keys);
-    output.as_mut().clone_from_slice(buf.as_ref());
 }
