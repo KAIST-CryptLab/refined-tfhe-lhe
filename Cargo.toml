@@ -29,11 +29,7 @@ name = "trace"
 harness = false
 
 [[test]]
-name = "trace_with_mod_switch_a"
-harness = false
-
-[[test]]
-name = "trace_with_mod_switch_b"
+name = "trace_with_mod_switch"
 harness = false
 
 [[test]]

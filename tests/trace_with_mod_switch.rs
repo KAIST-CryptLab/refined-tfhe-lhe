@@ -67,18 +67,27 @@ fn main() {
     }
     println!("Fresh GLWE ctxt err: {:.2} bits", (max_err as f64).log2());
 
-    let now = Instant::now();
+    // warm-up
+    for _ in 0..100 {
+        let _out = trace(ct.as_view(), &auto_keys);
+    }
+
     // Mod Down
+    let now = Instant::now();
     let mut ct_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, small_ciphertext_modulus);
     glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two(&ct, &mut ct_mod_down);
+    let time_mod_down = now.elapsed();
 
     // Mod Up
+    let now = Instant::now();
     let mut ct_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
     glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&ct_mod_down, &mut ct_mod_up);
+    let time_mod_up = now.elapsed();
 
     // Trace
+    let now = Instant::now();
     let out = trace(ct_mod_up.as_view(), &auto_keys);
-    let time = now.elapsed();
+    let time_trace = now.elapsed();
 
     // Decryption
     let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));
@@ -96,6 +105,10 @@ fn main() {
         max_err = std::cmp::max(max_err, abs_err);
     }
     println!("\nModDown -> ModUp -> Trace");
-    println!("- Time: {} ms", time.as_micros() as f64 / 1000f64);
+    let time_total = time_mod_down + time_mod_up + time_trace;
+    println!("- Time: {} ms", time_total.as_micros() as f64 / 1000f64);
+    println!("  - ModDown: {} ns", time_mod_down.as_nanos());
+    println!("  - ModUp  : {} ns", time_mod_up.as_nanos());
+    println!("  - Trace  : {} ms", time_trace.as_micros() as f64 / 1000f64);
     println!("- Err : {:.2} bits", (max_err as f64).log2());
 }
