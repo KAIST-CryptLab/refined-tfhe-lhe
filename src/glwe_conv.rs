@@ -6,8 +6,9 @@ use tfhe::core_crypto::{
     algorithms::slice_algorithms::slice_wrapping_opposite_assign,
 };
 use crate::{
+    utils::*,
+    automorphism::*,
     mod_switch::*,
-    automorphism::{trace_assign, AutomorphKey},
 };
 
 pub fn convert_lwe_to_glwe_const<Scalar, InputCont, OutputCont>(
@@ -76,6 +77,43 @@ pub fn convert_lwe_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCon
 }
 
 
+pub fn convert_lwes_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertextList<InputCont>,
+    output: &mut GlweCiphertext<OutputCont>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+) where
+    Scalar: UnsignedTorus,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    assert!(
+        input.ciphertext_modulus().is_native_modulus(),
+        "only native ciphertext modulus is supported"
+    );
+
+    let lwe_size = input.lwe_size();
+    let lwe_dimension = lwe_size.to_lwe_dimension();
+    let glwe_size = output.glwe_size();
+    let glwe_dimension = glwe_size.to_glwe_dimension();
+    let polynomial_size = output.polynomial_size();
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    assert_eq!(lwe_dimension.0, glwe_dimension.0 * polynomial_size.0);
+
+    let lwe_count = input.lwe_ciphertext_count().0;
+    let mut input_glwes = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(lwe_count), ciphertext_modulus);
+    for (input_lwe, mut input_glwe) in input.iter().zip(input_glwes.iter_mut()) {
+        convert_lwe_to_glwe_const(&input_lwe, &mut input_glwe);
+        mod_down_and_mod_up_assign(&mut input_glwe);
+    }
+
+    let mut buf = pack_lwes(&input_glwes, auto_keys);
+    trace_partial_assign(&mut buf, auto_keys, lwe_count);
+    glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());
+}
+
+
 pub fn trace_with_mod_switch<Scalar, InputCont, OutputCont>(
     input: &GlweCiphertext<InputCont>,
     output: &mut GlweCiphertext<OutputCont>,
@@ -101,6 +139,19 @@ pub fn trace_with_mod_switch_assign<Scalar, Cont>(
     Scalar: UnsignedTorus,
     Cont: ContainerMut<Element=Scalar>,
 {
+    // ModDown and ModUp
+    mod_down_and_mod_up_assign(input);
+
+    // Trace
+    trace_assign(input.as_mut_view(), auto_keys);
+}
+
+pub fn mod_down_and_mod_up_assign<Scalar, Cont>(
+    input: &mut GlweCiphertext<Cont>
+) where
+    Scalar: UnsignedInteger,
+    Cont: ContainerMut<Element=Scalar>,
+{
     let glwe_size = input.glwe_size();
     let polynomial_size = input.polynomial_size();
     let log_polynomial_size = polynomial_size.0.ilog2() as usize;
@@ -116,7 +167,52 @@ pub fn trace_with_mod_switch_assign<Scalar, Cont>(
 
     // ModUp
     glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&buf_mod_down, input);
+}
 
-    // Trace
-    trace_assign(input.as_mut_view(), auto_keys);
+fn pack_lwes<Scalar, Cont>(
+    input: &GlweCiphertextList<Cont>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+) -> GlweCiphertextOwned<Scalar> where
+    Scalar: UnsignedTorus,
+    Cont: Container<Element=Scalar>,
+{
+    let glwe_size = input.glwe_size();
+    let polynomial_size = input.polynomial_size();
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    let mut output = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+
+    let lwe_count = input.glwe_ciphertext_count().0;
+    if lwe_count == 1 {
+        glwe_ciphertext_clone_from(output.as_mut_view(), input.get(0).as_view());
+    } else {
+        assert_eq!(lwe_count % 2, 0);
+
+        let half_lwe_count = lwe_count / 2;
+        let mut input_even = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(half_lwe_count), ciphertext_modulus);
+        let mut input_odd = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(half_lwe_count), ciphertext_modulus);
+
+        for (i, (mut lwe_even, mut lwe_odd)) in input_even.iter_mut().zip(input_odd.iter_mut()).enumerate() {
+            glwe_ciphertext_clone_from(lwe_even.as_mut_view(), input.get(2*i).as_view());
+            glwe_ciphertext_clone_from(lwe_odd.as_mut_view(), input.get(2*i+1).as_view());
+        }
+
+        let output_even = pack_lwes(&input_even, auto_keys);
+        let output_odd = pack_lwes(&input_odd, auto_keys);
+
+        let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+        glwe_ciphertext_sub_assign(&mut buf, &output_odd);
+        glwe_ciphertext_monic_monomial_mul_assign(&mut buf, MonomialDegree(polynomial_size.0 / lwe_count));
+        glwe_ciphertext_add_assign(&mut buf, &output_even);
+        let auto_key = auto_keys.get(&(lwe_count + 1)).unwrap();
+        auto_key.auto(output.as_mut_view(), buf.as_view());
+
+        glwe_ciphertext_clone_from(buf.as_mut_view(), output_odd.as_view());
+        glwe_ciphertext_monic_monomial_mul_assign(&mut buf, MonomialDegree(polynomial_size.0 / lwe_count));
+        glwe_ciphertext_add_assign(&mut buf, &output_even);
+
+        glwe_ciphertext_add_assign(&mut output, &buf);
+    }
+
+    output
 }

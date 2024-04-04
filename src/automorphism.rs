@@ -214,27 +214,48 @@ where
 
 pub fn trace<Scalar: UnsignedTorus + Sync + Send>(
     glwe_in: GlweCiphertextView<Scalar>,
-    auto_key_map: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
 ) -> GlweCiphertextOwned<Scalar> {
-    let n = glwe_in.polynomial_size().0;
-    let mut buf = GlweCiphertextOwned::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
-    let mut out: GlweCiphertext<Vec<Scalar>> = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
-    out.as_mut().clone_from_slice(glwe_in.as_ref());
-
-    for i in 1..=n.ilog2() {
-        let k = n / (1 << (i - 1)) + 1;
-        let auto_key = auto_key_map.get(&k).unwrap();
-        auto_key.auto(buf.as_mut_view(), out.as_view());
-        glwe_ciphertext_add_assign(&mut out, &buf);
-    }
+    let mut out = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
+    glwe_ciphertext_clone_from(out.as_mut_view(), glwe_in);
+    trace_assign(out.as_mut_view(), auto_keys);
 
     out
 }
 
 pub fn trace_assign<Scalar: UnsignedTorus + Sync + Send>(
     mut glwe_in: GlweCiphertextMutView<Scalar>,
-    auto_key_map: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
 ) {
-    let out = trace(glwe_in.as_view(), auto_key_map);
-    glwe_in.as_mut().clone_from_slice(out.as_ref());
+    trace_partial_assign(&mut glwe_in, auto_keys, 1);
+}
+
+pub fn trace_partial_assign<Scalar, Cont>(
+    input: &mut GlweCiphertext<Cont>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
+    n: usize,
+) where
+    Scalar: UnsignedTorus,
+    Cont: ContainerMut<Element=Scalar>,
+{
+    let glwe_size = input.glwe_size();
+    let polynomial_size = input.polynomial_size();
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    assert!(polynomial_size.0 % n == 0);
+
+    let mut buf = GlweCiphertextOwned::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    let mut out: GlweCiphertext<Vec<Scalar>> = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    glwe_ciphertext_clone_from(out.as_mut_view(), input.as_view());
+
+    let log_polynomial_size = polynomial_size.0.ilog2() as usize;
+    let log_n = n.ilog2() as usize;
+    for i in 1..=(log_polynomial_size - log_n) {
+        let k = polynomial_size.0 / (1 << (i - 1)) + 1;
+        let auto_key = auto_keys.get(&k).unwrap();
+        auto_key.auto(buf.as_mut_view(), out.as_view());
+        glwe_ciphertext_add_assign(&mut out, &buf);
+    }
+
+    glwe_ciphertext_clone_from(input.as_mut_view(), out.as_view());
 }

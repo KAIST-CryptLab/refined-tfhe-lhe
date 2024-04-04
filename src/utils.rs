@@ -1,6 +1,6 @@
 use tfhe::core_crypto::{
     prelude::*,
-    algorithms::polynomial_algorithms::polynomial_wrapping_monic_monomial_div_assign,
+    algorithms::polynomial_algorithms::*,
 };
 
 /* -------- Error Tracking -------- */
@@ -159,6 +159,37 @@ pub fn lwe_ciphertext_list_add_assign<Scalar, LhsContMut, RhsCont>(
 }
 
 /* -------- GLWE -------- */
+pub fn glwe_ciphertext_add_monic_mul_assign<Scalar, LhsCont, RhsCont>(
+    lhs: &mut GlweCiphertext<LhsCont>,
+    rhs: &GlweCiphertext<RhsCont>,
+    monomial_degree: MonomialDegree,
+) where
+    Scalar: UnsignedInteger,
+    LhsCont: ContainerMut<Element=Scalar>,
+    RhsCont: ContainerMut<Element=Scalar>,
+{
+    assert_eq!(lhs.glwe_size(), rhs.glwe_size());
+    assert_eq!(lhs.polynomial_size(), rhs.polynomial_size());
+    assert_eq!(lhs.ciphertext_modulus(), rhs.ciphertext_modulus());
+
+    for (mut lhs_poly, rhs_poly) in lhs.as_mut_polynomial_list().iter_mut().zip(rhs.as_polynomial_list().iter()) {
+        let mut buf = Polynomial::new(Scalar::ZERO, rhs.polynomial_size());
+        polynomial_wrapping_monic_monomial_mul_and_subtract(&mut buf, &rhs_poly, monomial_degree);
+        polynomial_wrapping_sub_assign(&mut lhs_poly, &buf);
+    }
+}
+
+pub fn glwe_ciphertext_monic_monomial_mul_assign<Scalar, ContMut>(
+    glwe: &mut GlweCiphertext<ContMut>,
+    monomial_degree: MonomialDegree,
+) where
+    Scalar: UnsignedInteger,
+    ContMut: ContainerMut<Element=Scalar>,
+{
+    for mut poly in glwe.as_mut_polynomial_list().iter_mut() {
+        polynomial_wrapping_monic_monomial_mul_assign(&mut poly, monomial_degree);
+    }
+}
 pub fn glwe_ciphertext_monic_monomial_div_assign<Scalar, ContMut>(
     glwe: &mut GlweCiphertext<ContMut>,
     monomial_degree: MonomialDegree,

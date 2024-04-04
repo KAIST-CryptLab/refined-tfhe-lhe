@@ -41,6 +41,10 @@ name = "pksk"
 harness = false
 
 [[test]]
+name = "lwes_to_glwe"
+harness = false
+
+[[test]]
 name = "pbs"
 harness = false
 
@@ -66,6 +70,10 @@ harness = false
 
 [[bench]]
 name = "bench_lwe_to_glwe"
+harness = false
+
+[[bench]]
+name = "bench_lwes_to_glwe"
 harness = false
 
 [features]
