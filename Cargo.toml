@@ -68,6 +68,10 @@ harness = false
 name = "aes_eval"
 harness = false
 
+[[test]]
+name = "glwe_keyswitch"
+harness = false
+
 [[bench]]
 name = "bench_lwe_to_glwe"
 harness = false
