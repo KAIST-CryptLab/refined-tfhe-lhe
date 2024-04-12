@@ -1,19 +1,16 @@
 use std::collections::HashMap;
 use aligned_vec::ABox;
 use tfhe::core_crypto::{
-        prelude::*,
-        fft_impl::fft64::{
-        c64,
-        crypto::ggsw::FourierGgswCiphertext,
-    }
+    prelude::*,
+    fft_impl::fft64::c64,
 };
-use crate::utils::*;
+use crate::{utils::*, glwe_keyswitch::*, fourier_glwe_keyswitch::*};
 
 // The following codes generalize rlweExpand
 // from https://github.com/KULeuven-COSIC/SortingHat
 // to automorphism on arbitrary GLWE dimension
 pub struct AutomorphKey<C: Container<Element=c64>> {
-    ksks: FourierGgswCiphertext<C>,
+    ksk: FourierGlweKeyswitchKey64<C>,
     decomp_base_log: DecompositionBaseLog,
     decomp_level_count: DecompositionLevelCount,
     glwe_dimension: GlweDimension,
@@ -30,9 +27,9 @@ impl AutomorphKey<ABox<[c64]>> {
         auto_k: usize,
     ) -> Self {
         let glwe_size = glwe_dimension.to_glwe_size();
-        let ksks = FourierGgswCiphertext::new(glwe_size, polynomial_size, decomp_base_log, decomp_level_count);
+        let ksk = FourierGlweKeyswitchKey64::new(glwe_size, glwe_size, polynomial_size, decomp_base_log, decomp_level_count);
         AutomorphKey {
-            ksks: ksks,
+            ksk: ksk,
             decomp_base_log,
             decomp_level_count,
             glwe_dimension,
@@ -60,7 +57,7 @@ impl AutomorphKey<ABox<[c64]>> {
     /// Fill this object with the appropriate key switching key
     /// that is used for the automorphism operation
     /// where after_key is {S_i(X)} and before_key is computed as {S_i(X^k)}.
-    pub fn fill_with_automorph_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
+    fn fill_with_automorph_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
         &mut self,
         before_key: &mut GlweSecretKeyOwned<Scalar>,
         after_key: &GlweSecretKeyOwned<Scalar>,
@@ -92,7 +89,7 @@ impl AutomorphKey<ABox<[c64]>> {
 
     /// Fill this object with the appropriate keyswitching key
     /// that transforms ciphertexts under before_key to ciphertexts under after_key.
-    pub fn fill_with_keyswitch_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
+    fn fill_with_keyswitch_key<Scalar: UnsignedTorus + Sync + Send, G: ByteRandomGenerator>(
         &mut self,
         before_key: &GlweSecretKeyOwned<Scalar>,
         after_key: &GlweSecretKeyOwned<Scalar>,
@@ -104,84 +101,49 @@ impl AutomorphKey<ABox<[c64]>> {
         debug_assert!(self.polynomial_size == before_key.polynomial_size());
         debug_assert!(self.polynomial_size == after_key.polynomial_size());
 
-        let glwe_dimension = self.glwe_dimension;
-        let glwe_size = glwe_dimension.to_glwe_size();
-        let polynomial_size = self.polynomial_size;
         let decomp_level_count = self.decomp_level_count;
         let decomp_base_log = self.decomp_base_log;
         let ciphertext_modulus = CiphertextModulus::new_native();
 
-        let before_key_poly_list = before_key.as_polynomial_list();
-        let mut standard_ksks = GgswCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, decomp_base_log, decomp_level_count, ciphertext_modulus);
-        for (idx, mut glwe) in standard_ksks.as_mut_glwe_list().iter_mut().enumerate() {
-            let row = idx % glwe_size.0;
-            let level = idx / glwe_size.0 + 1;
-
-            if row < glwe_size.0 - 1 {
-                let sk_poly = before_key_poly_list.get(row);
-                let pt = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                    sk_poly.as_ref().get(i).unwrap().wrapping_neg() << (Scalar::BITS - level * decomp_base_log.0)
-                }).collect::<Vec<Scalar>>());
-                encrypt_glwe_ciphertext(&after_key, &mut glwe, &pt, noise_parameters, generator);
-            }
-        }
-
-        let fft = Fft::new(polynomial_size);
-        let fft = fft.as_view();
-        let mut buffers = ComputationBuffers::new();
-        buffers.resize(
-            convert_standard_ggsw_ciphertext_to_fourier_mem_optimized_requirement(fft)
-                .unwrap()
-                .unaligned_bytes_required(),
+        let standard_ksk = allocate_and_generate_new_glwe_keyswitch_key(
+            before_key,
+            after_key,
+            decomp_base_log,
+            decomp_level_count,
+            noise_parameters,
+            ciphertext_modulus,
+            generator,
         );
-
-        convert_standard_ggsw_ciphertext_to_fourier_mem_optimized(&standard_ksks, &mut self.ksks, fft, buffers.stack());
+        convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_ksk, &mut self.ksk);
     }
 
-    pub fn keyswitch_ciphertext<Scalar: UnsignedTorus + Sync + Send>(
+    fn keyswitch_ciphertext<Scalar, InputCont, OutputCont>(
         &self,
-        mut after: GlweCiphertextMutView<Scalar>,
-        before: GlweCiphertextView<Scalar>,
-    ) {
-        let glwe_size = self.glwe_dimension.to_glwe_size();
-        let polynomial_size = self.polynomial_size;
-
-        let fft = Fft::new(polynomial_size);
-        let fft = fft.as_view();
-
-        after.as_mut().fill(Scalar::ZERO);
-        after.get_mut_body().as_mut().clone_from_slice(before.get_body().as_ref());
-
-        let mut buffers = ComputationBuffers::new();
-        buffers.resize(
-            add_external_product_assign_mem_optimized_requirement::<Scalar>(
-                glwe_size,
-                polynomial_size,
-                fft,
-            )
-            .unwrap()
-            .unaligned_bytes_required(),
-        );
-        add_external_product_assign_mem_optimized(
-            &mut after,
-            &self.ksks,
-            &before,
-            fft,
-            buffers.stack(),
-        );
+        after: &mut GlweCiphertext<OutputCont>,
+        before: &GlweCiphertext<InputCont>,
+    ) where
+        Scalar: UnsignedTorus + Sync + Send,
+        InputCont: Container<Element=Scalar>,
+        OutputCont: ContainerMut<Element=Scalar>,
+    {
+        keyswitch_glwe_ciphertext_64(&self.ksk, before, after);
     }
 
-    pub fn auto<Scalar: UnsignedTorus + Sync + Send>(
+    pub fn auto<Scalar, InputCont, OutputCont>(
         &self,
-        after: GlweCiphertextMutView<Scalar>,
-        before: GlweCiphertextView<Scalar>,
-    ) {
+        after: &mut GlweCiphertext<OutputCont>,
+        before: &GlweCiphertext<InputCont>,
+    ) where
+        Scalar: UnsignedTorus + Sync + Send,
+        InputCont: Container<Element=Scalar>,
+        OutputCont: ContainerMut<Element=Scalar>,
+    {
         let mut before_power = GlweCiphertextOwned::new(Scalar::ZERO, before.glwe_size(), before.polynomial_size(), before.ciphertext_modulus());
         for (mut poly_power, poly) in before_power.as_mut_polynomial_list().iter_mut().zip(before.as_polynomial_list().iter()) {
             poly_power.as_mut().clone_from_slice(eval_x_k(poly, self.auto_k).as_ref());
         }
 
-        self.keyswitch_ciphertext(after, before_power.as_view());
+        self.keyswitch_ciphertext(after, &before_power);
     }
 }
 
@@ -212,22 +174,29 @@ where
     hm
 }
 
-pub fn trace<Scalar: UnsignedTorus + Sync + Send>(
-    glwe_in: GlweCiphertextView<Scalar>,
+pub fn trace<Scalar, Cont>(
+    glwe_in: &GlweCiphertext<Cont>,
     auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
-) -> GlweCiphertextOwned<Scalar> {
+) -> GlweCiphertextOwned<Scalar>
+where
+    Scalar: UnsignedTorus + Sync + Send,
+    Cont: Container<Element=Scalar>,
+{
     let mut out = GlweCiphertext::new(Scalar::ZERO, glwe_in.glwe_size(), glwe_in.polynomial_size(), glwe_in.ciphertext_modulus());
-    glwe_ciphertext_clone_from(out.as_mut_view(), glwe_in);
-    trace_assign(out.as_mut_view(), auto_keys);
+    glwe_ciphertext_clone_from(&mut out, glwe_in);
+    trace_assign(&mut out, auto_keys);
 
     out
 }
 
-pub fn trace_assign<Scalar: UnsignedTorus + Sync + Send>(
-    mut glwe_in: GlweCiphertextMutView<Scalar>,
+pub fn trace_assign<Scalar, ContMut>(
+    glwe_in: &mut GlweCiphertext<ContMut>,
     auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
-) {
-    trace_partial_assign(&mut glwe_in, auto_keys, 1);
+) where
+    Scalar: UnsignedTorus + Sync + Send,
+    ContMut: ContainerMut<Element=Scalar>,
+{
+    trace_partial_assign(glwe_in, auto_keys, 1);
 }
 
 pub fn trace_partial_assign<Scalar, Cont>(
@@ -246,16 +215,16 @@ pub fn trace_partial_assign<Scalar, Cont>(
 
     let mut buf = GlweCiphertextOwned::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
     let mut out: GlweCiphertext<Vec<Scalar>> = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-    glwe_ciphertext_clone_from(out.as_mut_view(), input.as_view());
+    glwe_ciphertext_clone_from(&mut out, input);
 
     let log_polynomial_size = polynomial_size.0.ilog2() as usize;
     let log_n = n.ilog2() as usize;
     for i in 1..=(log_polynomial_size - log_n) {
         let k = polynomial_size.0 / (1 << (i - 1)) + 1;
         let auto_key = auto_keys.get(&k).unwrap();
-        auto_key.auto(buf.as_mut_view(), out.as_view());
+        auto_key.auto(&mut buf, &out);
         glwe_ciphertext_add_assign(&mut out, &buf);
     }
 
-    glwe_ciphertext_clone_from(input.as_mut_view(), out.as_view());
+    glwe_ciphertext_clone_from(input, &out);
 }

@@ -241,7 +241,14 @@ pub fn glwe_ciphertext_monic_monomial_div_assign<Scalar, ContMut>(
     }
 }
 
-pub fn glwe_ciphertext_clone_from<Scalar: UnsignedInteger>(mut dst: GlweCiphertextMutView<Scalar>, src: GlweCiphertextView<Scalar>) {
+pub fn glwe_ciphertext_clone_from<Scalar, OutputCont, InputCont>(
+    dst: &mut GlweCiphertext<OutputCont>,
+    src: &GlweCiphertext<InputCont>,
+) where
+    Scalar: UnsignedTorus,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
     debug_assert!(dst.glwe_size() == src.glwe_size());
     debug_assert!(dst.polynomial_size() == src.polynomial_size());
     dst.as_mut().clone_from_slice(src.as_ref());

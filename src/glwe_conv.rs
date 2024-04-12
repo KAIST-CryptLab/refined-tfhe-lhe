@@ -110,7 +110,7 @@ pub fn convert_lwes_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCo
 
     let mut buf = pack_lwes(&input_glwes, auto_keys);
     trace_partial_assign(&mut buf, auto_keys, lwe_count);
-    glwe_ciphertext_clone_from(output.as_mut_view(), buf.as_view());
+    glwe_ciphertext_clone_from(output, &buf);
 }
 
 
@@ -143,7 +143,7 @@ pub fn trace_with_mod_switch_assign<Scalar, Cont>(
     mod_down_and_mod_up_assign(input);
 
     // Trace
-    trace_assign(input.as_mut_view(), auto_keys);
+    trace_assign(input, auto_keys);
 }
 
 pub fn mod_down_and_mod_up_assign<Scalar, Cont>(
@@ -184,7 +184,7 @@ fn pack_lwes<Scalar, Cont>(
 
     let lwe_count = input.glwe_ciphertext_count().0;
     if lwe_count == 1 {
-        glwe_ciphertext_clone_from(output.as_mut_view(), input.get(0).as_view());
+        glwe_ciphertext_clone_from(&mut output, &input.get(0));
     } else {
         assert_eq!(lwe_count % 2, 0);
 
@@ -193,8 +193,8 @@ fn pack_lwes<Scalar, Cont>(
         let mut input_odd = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(half_lwe_count), ciphertext_modulus);
 
         for (i, (mut lwe_even, mut lwe_odd)) in input_even.iter_mut().zip(input_odd.iter_mut()).enumerate() {
-            glwe_ciphertext_clone_from(lwe_even.as_mut_view(), input.get(2*i).as_view());
-            glwe_ciphertext_clone_from(lwe_odd.as_mut_view(), input.get(2*i+1).as_view());
+            glwe_ciphertext_clone_from(&mut lwe_even, &input.get(2*i));
+            glwe_ciphertext_clone_from(&mut lwe_odd, &input.get(2*i+1));
         }
 
         let output_even = pack_lwes(&input_even, auto_keys);
@@ -205,9 +205,9 @@ fn pack_lwes<Scalar, Cont>(
         glwe_ciphertext_monic_monomial_mul_assign(&mut buf, MonomialDegree(polynomial_size.0 / lwe_count));
         glwe_ciphertext_add_assign(&mut buf, &output_even);
         let auto_key = auto_keys.get(&(lwe_count + 1)).unwrap();
-        auto_key.auto(output.as_mut_view(), buf.as_view());
+        auto_key.auto(&mut output, &buf);
 
-        glwe_ciphertext_clone_from(buf.as_mut_view(), output_odd.as_view());
+        glwe_ciphertext_clone_from(&mut buf, &output_odd);
         glwe_ciphertext_monic_monomial_mul_assign(&mut buf, MonomialDegree(polynomial_size.0 / lwe_count));
         glwe_ciphertext_add_assign(&mut buf, &output_even);
 

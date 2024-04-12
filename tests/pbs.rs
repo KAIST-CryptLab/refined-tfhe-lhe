@@ -3,47 +3,118 @@ use tfhe::core_crypto::prelude::*;
 use hom_trace::{get_val_and_abs_err, generate_accumulator};
 
 fn main() {
-    // shortint parameters
-    let lwe_dimension = LweDimension(742);
-    let lwe_modular_std_dev = StandardDev(0.000007069849454709433);
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let pbs_base_log = DecompositionBaseLog(23);
-    let pbs_level = DecompositionLevelCount(1);
-    let ks_level = DecompositionLevelCount(5);
-    let ks_base_log = DecompositionBaseLog(3);
-    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
-    test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
-    println!();
+    // shortint parameters: message_2_carry_2_ks_pbs
+    // let lwe_dimension = LweDimension(742);
+    // let lwe_modular_std_dev = StandardDev(0.000007069849454709433);
+    // let polynomial_size = PolynomialSize(2048);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    // let pbs_base_log = DecompositionBaseLog(23);
+    // let pbs_level = DecompositionLevelCount(1);
+    // let ks_level = DecompositionLevelCount(5);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    // shortint parameters
-    let lwe_dimension = LweDimension(742);
-    let lwe_modular_std_dev = StandardDev(0.000007069849454709433);
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let pbs_base_log = DecompositionBaseLog(15);
-    let pbs_level = DecompositionLevelCount(2);
-    let ks_level = DecompositionLevelCount(5);
-    let ks_base_log = DecompositionBaseLog(3);
-    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
-    test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
-    println!();
+    // println!("message_2_carry_2_ks_pbs");
+    // test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    // println!();
 
     // 2-encoding parameters
-    let lwe_dimension = LweDimension(668);
-    let lwe_modular_std_dev = StandardDev(0.0000204);
-    let polynomial_size = PolynomialSize(256);
-    let glwe_dimension = GlweDimension(6);
-    let glwe_modular_std_dev = StandardDev(0.00000000000345);
-    let pbs_base_log = DecompositionBaseLog(18);
-    let pbs_level = DecompositionLevelCount(1);
-    let ks_level = DecompositionLevelCount(4);
-    let ks_base_log = DecompositionBaseLog(3);
+    // let lwe_dimension = LweDimension(668);
+    // let lwe_modular_std_dev = StandardDev(0.0000204);
+    // let polynomial_size = PolynomialSize(256);
+    // let glwe_dimension = GlweDimension(6);
+    // let glwe_modular_std_dev = StandardDev(0.00000000000345);
+    // let pbs_base_log = DecompositionBaseLog(18);
+    // let pbs_level = DecompositionLevelCount(1);
+    // let ks_level = DecompositionLevelCount(4);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    // println!("2-encoding");
+    // test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    // println!();
+
+    // shortint parameters: message_3_carry_3_ks_pbs
+    // let lwe_dimension = LweDimension(864);
+    // let lwe_modular_std_dev = StandardDev(0.000000757998020150446);
+    // let polynomial_size = PolynomialSize(8192);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
+    // let pbs_base_log = DecompositionBaseLog(15);
+    // let pbs_level = DecompositionLevelCount(2);
+    // let ks_level = DecompositionLevelCount(6);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    // println!("message_3_carry_3_ks_pbs");
+    // test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    // println!();
+
+    // shortint parameters: message_4_carry_4_ks_pbs
+    // let lwe_dimension = LweDimension(996);
+    // let lwe_modular_std_dev = StandardDev(0.00000006767666038309478);
+    // let polynomial_size = PolynomialSize(32768);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
+    // let pbs_base_log = DecompositionBaseLog(15);
+    // let pbs_level = DecompositionLevelCount(2);
+    // let ks_level = DecompositionLevelCount(7);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    // println!("message_4_carry_4_ks_pbs");
+    // test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    // println!();
+
+    // wopbs parameters: wopbs_message_2_carry_2_ks_pbs
+    let lwe_dimension = LweDimension(769);
+    let lwe_modular_std_dev = StandardDev(0.0000043131554647504185);
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
+    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    let pbs_level = DecompositionLevelCount(2);
+    let pbs_base_log = DecompositionBaseLog(15);
+    let ks_level = DecompositionLevelCount(2);
+    let ks_base_log = DecompositionBaseLog(6);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    println!("wopbs_message_2_carry_2_ks_pbs");
     test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
     println!();
+
+    // wopbs parameters: wopbs_message_3_carry_3_ks_pbs
+    let lwe_dimension = LweDimension(873);
+    let lwe_modular_std_dev = StandardDev(0.0000006428797112843789);
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
+    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    let pbs_level = DecompositionLevelCount(4);
+    let pbs_base_log = DecompositionBaseLog(9);
+    let ks_level = DecompositionLevelCount(1);
+    let ks_base_log = DecompositionBaseLog(10);
+    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    println!("wopbs_message_3_carry_3_ks_pbs");
+    test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    println!();
+
+    // wopbs parameters: wopbs_message_4_carry_4_ks_pbs
+    let lwe_dimension = LweDimension(953);
+    let lwe_modular_std_dev = StandardDev(0.0000001486733969411098);
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
+    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    let pbs_level = DecompositionLevelCount(4);
+    let pbs_base_log = DecompositionBaseLog(9);
+    let ks_level = DecompositionLevelCount(1);
+    let ks_base_log = DecompositionBaseLog(11);
+    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    println!("wopbs_message_4_carry_4_ks_pbs");
+    test_negacyclic_pbs(lwe_dimension, lwe_modular_std_dev, polynomial_size, glwe_dimension, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, ciphertext_modulus);
+    println!();
+
 }
 
 fn test_negacyclic_pbs(
@@ -137,8 +208,9 @@ fn test_negacyclic_pbs(
         &fourier_bsk,
     );
 
+    let num_repeat = if polynomial_size.0 <= 2048 {100} else {10};
     let now = Instant::now();
-    for _ in 0..100 {
+    for _ in 0..num_repeat {
         let mut lwe_ciphertext_out1 = LweCiphertext::new(
             0u64,
             lwe_secret_key.lwe_dimension().to_lwe_size(),
@@ -151,7 +223,7 @@ fn test_negacyclic_pbs(
             &fourier_bsk,
         );
     }
-    println!("GenPBS time: {} ms", now.elapsed().as_micros() as f64 / 100000f64);
+    println!("GenPBS time: {} ms", now.elapsed().as_micros() as f64 / (num_repeat * 1000) as f64);
 
     // Check result
     let correct_val = 1u64;

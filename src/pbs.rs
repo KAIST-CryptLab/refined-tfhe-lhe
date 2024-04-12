@@ -135,8 +135,8 @@ pub fn pbs_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCont, AccCo
     let mut acc_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
     glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&acc_mod_down, &mut acc_mod_up);
 
-    let out = trace(acc_mod_up.as_view(), auto_keys);
-    glwe_ciphertext_clone_from(output.as_mut_view(), out.as_view());
+    let out = trace(&acc_mod_up, auto_keys);
+    glwe_ciphertext_clone_from(output, &out);
 }
 
 pub fn gen_blind_rotate_local_assign<Scalar: UnsignedTorus + CastInto<usize>>(

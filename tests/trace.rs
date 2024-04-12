@@ -47,7 +47,7 @@ fn main() {
     encrypt_glwe_ciphertext(&glwe_secret_key, &mut ciphertext, &pt, param.glwe_modular_std_dev, &mut encryption_generator);
 
     let now = Instant::now();
-    let out = trace(ciphertext.as_view(), &auto_keys);
+    let out = trace(&ciphertext, &auto_keys);
     let time_trace = now.elapsed();
     println!("Trace time: {} ms", time_trace.as_micros() as f64 / 1000f64);
 

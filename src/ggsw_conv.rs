@@ -122,7 +122,7 @@ pub fn switch_scheme<Scalar, InputCont, OutputCont>(
         for (mut glwe_mask, ss_key_ggsw) in glwe_mask_list.iter_mut().zip(ss_key.into_ggsw_iter()) {
             add_external_product_assign(&mut glwe_mask, &ss_key_ggsw, &glwe_bit);
         }
-        glwe_ciphertext_clone_from(glwe_body_list.get_mut(0).as_mut_view(), glwe_bit.as_view());
+        glwe_ciphertext_clone_from(&mut glwe_body_list.get_mut(0), &glwe_bit);
     }
 }
 
@@ -203,7 +203,7 @@ pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
             let log_scale = Scalar::BITS - cur_level * glev_base_log.0;
 
             let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-            glwe_ciphertext_clone_from(buf.as_mut_view(), local_accumulator.as_view());
+            glwe_ciphertext_clone_from(&mut buf, &local_accumulator);
             glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(k));
             glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
 
@@ -289,7 +289,7 @@ pub fn lwe_msb_bit_to_glev_by_pksk<Scalar>(
             let log_scale = Scalar::BITS - cur_level * glev_base_log.0;
 
             let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
-            glwe_ciphertext_clone_from(buf.as_mut_view(), local_accumulator.as_view());
+            glwe_ciphertext_clone_from(&mut buf, &local_accumulator);
             glwe_ciphertext_monic_monomial_div_assign(&mut buf, MonomialDegree(k));
             glwe_ciphertext_plaintext_add_assign(&mut buf, Plaintext(Scalar::ONE << (log_scale - 1)));
 
