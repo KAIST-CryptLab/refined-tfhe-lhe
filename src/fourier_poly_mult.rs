@@ -1,24 +1,24 @@
-use tfhe::core_crypto::{fft_impl::fft128, prelude::*};
+use tfhe::core_crypto::{algorithms::slice_algorithms::slice_wrapping_add_scalar_mul_assign, fft_impl::fft128, prelude::*};
 use aligned_vec::avec;
 
 pub fn fourier_polynomial_torus_integer_mult<Scalar, ContOut, ContLhs, ContRhs>(
     out: &mut Polynomial<ContOut>,
     lhs_torus: &Polynomial<ContLhs>,
     rhs_int: &Polynomial<ContRhs>,
-    modulus_sup: usize,
+    log_int_bound: usize,
 ) where
     Scalar: UnsignedTorus,
     ContOut: ContainerMut<Element=Scalar>,
     ContLhs: Container<Element=Scalar>,
     ContRhs: Container<Element=Scalar>,
 {
-    debug_assert!(Scalar::BITS <= 64);
-    debug_assert!(out.polynomial_size() == lhs_torus.polynomial_size());
-    debug_assert!(out.polynomial_size() == rhs_int.polynomial_size());
+    assert!(Scalar::BITS <= 64);
+    assert_eq!(out.polynomial_size(), lhs_torus.polynomial_size());
+    assert_eq!(out.polynomial_size(), rhs_int.polynomial_size());
 
     let polynomial_size = out.polynomial_size();
     let wrapper_glwe_size = GlweSize(1);
-    let wrapper_decomp_base_log = DecompositionBaseLog(modulus_sup);
+    let wrapper_decomp_base_log = DecompositionBaseLog(log_int_bound + 1);
     let wrapper_decomp_level_count = DecompositionLevelCount(1);
     let ciphertext_modulus = CiphertextModulus::new_native();
 
@@ -77,11 +77,45 @@ pub fn fourier_polynomial_torus_integer_mult<Scalar, ContOut, ContLhs, ContRhs>(
     );
 }
 
+pub fn fourier_polynomial_torus_integer_mult_split<ContOut, ContLhs, ContRhs>(
+    out: &mut Polynomial<ContOut>,
+    lhs_torus: &Polynomial<ContLhs>,
+    rhs_int: &Polynomial<ContRhs>,
+    log_int_bound: usize,
+) where
+    ContOut: ContainerMut<Element=u64>,
+    ContLhs: Container<Element=u64>,
+    ContRhs: Container<Element=u64>,
+{
+    assert_eq!(out.polynomial_size(), lhs_torus.polynomial_size());
+    assert_eq!(out.polynomial_size(), rhs_int.polynomial_size());
+
+    let polynomial_size = out.polynomial_size();
+
+    let mut lhs_torus_upper = Polynomial::new(0u64, polynomial_size);
+    let mut lhs_torus_lower = Polynomial::new(0u64, polynomial_size);
+
+    for ((val_upper, val_lower), val) in lhs_torus_upper.iter_mut()
+        .zip(lhs_torus_lower.iter_mut())
+        .zip(lhs_torus.iter())
+    {
+        *val_upper = (*val) >> 32;
+        *val_lower = ((*val) << 32) >> 32;
+    }
+
+    fourier_polynomial_torus_integer_mult(out, &lhs_torus_lower, rhs_int, log_int_bound);
+
+    let mut buf = Polynomial::new(0u64, polynomial_size);
+    fourier_polynomial_torus_integer_mult(&mut buf, &lhs_torus_upper, rhs_int, log_int_bound);
+
+    slice_wrapping_add_scalar_mul_assign(out.as_mut(), buf.as_ref(), 1u64 << 32);
+}
+
 pub fn fourier_glwe_polynomial_mult<Scalar, ContOut, ContLhs, ContRhs>(
     out: &mut GlweCiphertext<ContOut>,
     lhs: &GlweCiphertext<ContLhs>,
     rhs: &Polynomial<ContRhs>,
-    modulus_sup: usize,
+    modulus_bit: usize,
 ) where
     Scalar: UnsignedTorus,
     ContOut: ContainerMut<Element=Scalar>,
@@ -96,7 +130,7 @@ pub fn fourier_glwe_polynomial_mult<Scalar, ContOut, ContLhs, ContRhs>(
 
     out.as_mut().fill(Scalar::ZERO);
     for (mut out_poly, lhs_poly) in out.as_mut_polynomial_list().iter_mut().zip(lhs.as_polynomial_list().iter()) {
-        fourier_polynomial_torus_integer_mult(&mut out_poly, &lhs_poly, rhs, modulus_sup);
+        fourier_polynomial_torus_integer_mult(&mut out_poly, &lhs_poly, rhs, modulus_bit);
     }
 }
 
