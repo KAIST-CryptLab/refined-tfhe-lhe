@@ -1,5 +1,7 @@
-use hom_trace::{allocate_and_generate_new_glwe_keyswitch_key, standard_keyswitch_glwe_ciphertext};
+use std::time::Instant;
+
 use tfhe::core_crypto::prelude::*;
+use hom_trace::{glwe_keyswitch::*, fourier_glwe_keyswitch::*, utils::get_glwe_max_err};
 
 type Scalar = u64;
 
@@ -11,11 +13,11 @@ fn main() {
     let large_glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
 
-    let decomp_level_count_to_small = DecompositionLevelCount(8);
-    let decomp_base_log_to_small = DecompositionBaseLog(6);
+    let decomp_level_count_to_small = DecompositionLevelCount(6);
+    let decomp_base_log_to_small = DecompositionBaseLog(8);
 
     let decomp_level_count_to_large = DecompositionLevelCount(3);
-    let decomp_base_log_to_large = DecompositionBaseLog(16);
+    let decomp_base_log_to_large = DecompositionBaseLog(10);
 
     test_glwe_keyswitch(
         polynomial_size,
@@ -44,8 +46,8 @@ fn test_glwe_keyswitch(
     ciphertext_modulus: CiphertextModulus::<Scalar>,
 ) {
     println!(
-        "N: {}, k_small: {}, k_large: {} | B_to_small: 2^{}, l_to_small: {} | B_to_large: 2^{}, l_to_large: 2^{}",
-        polynomial_size.0, glwe_dimension.0, large_glwe_dimension.0, decomp_base_log_to_small.0, decomp_level_count_to_small.0, decomp_base_log_to_large.0, decomp_level_count_to_large.0
+        "N: {}, k_small: {}, k_large: {}",
+        polynomial_size.0, glwe_dimension.0, large_glwe_dimension.0,
     );
 
     // Set random generators and buffers
@@ -72,28 +74,19 @@ fn test_glwe_keyswitch(
     encrypt_glwe_ciphertext(&large_glwe_sk, &mut large_ct, &pt, large_glwe_modular_std_dev, &mut encryption_generator);
 
     // Error of fresh ciphertexts
-    let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));
-
-    decrypt_glwe_ciphertext(&glwe_sk, &ct, &mut dec);
-    let mut max_err = Scalar::ZERO;
-    for val in dec.iter() {
-        let val = *val.0;
-        let abs_err = std::cmp::min(val, val.wrapping_neg());
-        max_err = std::cmp::max(max_err, abs_err);
-    }
+    let max_err = get_glwe_max_err(&glwe_sk, &ct, &pt);
     println!("Fresh GLWE ctxt err: {:.2} bits", (max_err as f64).log2());
 
-    decrypt_glwe_ciphertext(&large_glwe_sk, &large_ct, &mut dec);
-    let mut max_err = Scalar::ZERO;
-    for val in dec.iter() {
-        let val = *val.0;
-        let abs_err = std::cmp::min(val, val.wrapping_neg());
-        max_err = std::cmp::max(max_err, abs_err);
-    }
+    let max_err = get_glwe_max_err(&large_glwe_sk, &large_ct, &pt);
     println!("Fresh large GLWE ctxt err: {:.2} bits", (max_err as f64).log2());
+    println!();
 
     // Test Glwe Keyswitching: Large -> Small
-    let glwe_keyswitch_key = allocate_and_generate_new_glwe_keyswitch_key(
+    println!(
+        "GLWE Keyswitching Large -> Small: B = 2^{}, l = {}",
+        decomp_base_log_to_small.0, decomp_level_count_to_small.0,
+    );
+    let standard_glwe_ksk = allocate_and_generate_new_glwe_keyswitch_key(
         &large_glwe_sk,
         &glwe_sk,
         decomp_base_log_to_small,
@@ -102,26 +95,74 @@ fn test_glwe_keyswitch(
         ciphertext_modulus,
         &mut encryption_generator,
     );
+    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey64::new(
+        large_glwe_size,
+        glwe_size,
+        polynomial_size,
+        decomp_base_log_to_small,
+        decomp_level_count_to_small,
+    );
+    convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
+
 
     let mut output = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
 
-    standard_keyswitch_glwe_ciphertext(
-        &glwe_keyswitch_key,
-        &large_ct,
-        &mut output,
+    // warm-up
+    for _ in 0..100 {
+        standard_keyswitch_glwe_ciphertext(
+            &standard_glwe_ksk,
+            &large_ct,
+            &mut output,
+        );
+        keyswitch_glwe_ciphertext_64(
+            &fourier_glwe_ksk,
+            &large_ct,
+            &mut output,
+        );
+    }
+
+    let num_repeat = 100;
+    let now = Instant::now();
+    for _ in 0..num_repeat {
+        standard_keyswitch_glwe_ciphertext(
+            &standard_glwe_ksk,
+            &large_ct,
+            &mut output,
+        );
+    }
+    let time_to_small = now.elapsed();
+
+    let max_err = get_glwe_max_err(&glwe_sk, &output, &pt);
+    println!(
+        "[Standard] GLWE KS large -> small: {} ms, {:.2} bits",
+        time_to_small.as_millis() as f64 / num_repeat as f64,
+        (max_err as f64).log2(),
     );
 
-    decrypt_glwe_ciphertext(&glwe_sk, &output, &mut dec);
-    let mut max_err = Scalar::ZERO;
-    for val in dec.iter() {
-        let val = *val.0;
-        let abs_err = std::cmp::min(val, val.wrapping_neg());
-        max_err = std::cmp::max(max_err, abs_err);
+    let now = Instant::now();
+    for _ in 0..num_repeat {
+        keyswitch_glwe_ciphertext_64(
+            &fourier_glwe_ksk,
+            &large_ct,
+            &mut output,
+        );
     }
-    println!("GLWE KS large -> small: {:.2} bits", (max_err as f64).log2());
+    let time_to_small_fourier = now.elapsed();
+
+    let max_err = get_glwe_max_err(&glwe_sk, &output, &pt);
+    println!(
+        "[Fourier]  GLWE KS large -> small: {} ms, {:.2} bits",
+        time_to_small_fourier.as_millis() as f64 / num_repeat as f64,
+        (max_err as f64).log2(),
+    );
+    println!();
 
     // Test Glwe Keyswitching: Small -> Large
-    let glwe_keyswitch_key = allocate_and_generate_new_glwe_keyswitch_key(
+    println!(
+        "GLWE Keyswitching Small -> Large: B = 2^{}, l = {}",
+        decomp_base_log_to_large.0, decomp_level_count_to_large.0,
+    );
+    let standard_glwe_ksk = allocate_and_generate_new_glwe_keyswitch_key(
         &glwe_sk,
         &large_glwe_sk,
         decomp_base_log_to_large,
@@ -130,21 +171,48 @@ fn test_glwe_keyswitch(
         ciphertext_modulus,
         &mut encryption_generator,
     );
+    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey64::new(
+        glwe_size,
+        large_glwe_size,
+        polynomial_size,
+        decomp_base_log_to_large,
+        decomp_level_count_to_large,
+    );
+    convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
     let mut output = GlweCiphertext::new(Scalar::ZERO, large_glwe_size, polynomial_size, ciphertext_modulus);
 
-    standard_keyswitch_glwe_ciphertext(
-        &glwe_keyswitch_key,
-        &ct,
-        &mut output,
+    let now = Instant::now();
+    for _ in 0..num_repeat {
+        standard_keyswitch_glwe_ciphertext(
+            &standard_glwe_ksk,
+            &ct,
+            &mut output,
+        );
+    }
+    let time_to_large = now.elapsed();
+
+    let max_err = get_glwe_max_err(&large_glwe_sk, &output, &pt);
+    println!(
+        "[Standrad] GLWE KS small -> large: {} ms, {:.2} bits",
+        time_to_large.as_millis() as f64 / num_repeat as f64,
+        (max_err as f64).log2(),
     );
 
-    decrypt_glwe_ciphertext(&large_glwe_sk, &output, &mut dec);
-    let mut max_err = Scalar::ZERO;
-    for val in dec.iter() {
-        let val = *val.0;
-        let abs_err = std::cmp::min(val, val.wrapping_neg());
-        max_err = std::cmp::max(max_err, abs_err);
+    let now = Instant::now();
+    for _ in 0..num_repeat {
+        keyswitch_glwe_ciphertext_64(
+            &fourier_glwe_ksk,
+            &ct,
+            &mut output,
+        );
     }
-    println!("GLWE KS small -> large: {:.2} bits", (max_err as f64).log2());
+    let time_to_large_fourier = now.elapsed();
+
+    let max_err = get_glwe_max_err(&large_glwe_sk, &output, &pt);
+    println!(
+        "[Fourier]  GLWE KS small -> large: {} ms, {:.2} bits",
+        time_to_large_fourier.as_millis() as f64 / num_repeat as f64,
+        (max_err as f64).log2(),
+    );
 }

@@ -78,6 +78,45 @@ where
     return (decoded, bit_err, abs_err);
 }
 
+pub fn get_glwe_max_err<Scalar, KeyCont, InputCont, PtCont>(
+    glwe_secret_key: &GlweSecretKey<KeyCont>,
+    input: &GlweCiphertext<InputCont>,
+    correct_val_list: &PlaintextList<PtCont>,
+) -> Scalar
+where
+    Scalar: UnsignedTorus,
+    KeyCont: Container<Element=Scalar>,
+    InputCont: Container<Element=Scalar>,
+    PtCont: Container<Element=Scalar>,
+{
+    assert!(input.ciphertext_modulus().is_compatible_with_native_modulus());
+    assert_eq!(glwe_secret_key.glwe_dimension(), input.glwe_size().to_glwe_dimension());
+    assert_eq!(glwe_secret_key.polynomial_size(), input.polynomial_size());
+    let polynomial_size = input.polynomial_size().0;
+
+    let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size));
+    decrypt_glwe_ciphertext(&glwe_secret_key, &input, &mut dec);
+
+    let scaling = input.ciphertext_modulus().get_power_of_two_scaling_to_native_torus();
+
+    let mut max_err = Scalar::ZERO;
+    for (decrypted, correct_val) in dec.iter()
+        .zip(correct_val_list.iter())
+    {
+        let decrypted = *decrypted.0 * scaling;
+        let correct_val = *correct_val.0 * scaling;
+
+        let abs_err = {
+            let d0 = decrypted.wrapping_sub(correct_val);
+            let d1 = correct_val.wrapping_sub(decrypted);
+            std::cmp::min(d0, d1) / scaling
+        };
+        max_err = std::cmp::max(max_err, abs_err);
+    }
+
+    max_err
+}
+
 pub fn get_max_err_ggsw_bit<Scalar: UnsignedTorus>(
     glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
     ggsw_in: GgswCiphertextView<Scalar>,

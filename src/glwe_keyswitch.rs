@@ -1,6 +1,6 @@
 use tfhe::core_crypto::{
+    prelude::polynomial_algorithms::*,
     prelude::*,
-    prelude::polynomial_algorithms::polynomial_wrapping_add_mul_assign,
 };
 
 pub struct GlweKeyswitchKey<C: Container>
@@ -192,7 +192,7 @@ pub fn generate_glwe_keyswitch_key<Scalar, InputKeyCont, OutputKeyCont, KSKeyCon
         .zip(glwe_keyswitch_key.as_mut_polynomial_list().chunks_exact_mut(output_glwe_size.0 * decomp_level_count))
     {
         for k in 0..decomp_level_count {
-            let level = decomp_level_count - k;
+            let level = k + 1;
             let log_scale = Scalar::BITS - decomp_base_log * level;
 
             let scaled_pt = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
@@ -277,7 +277,7 @@ pub fn standard_keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCo
         for (mut buf_poly, glev_block) in buf.as_mut_polynomial_list().iter_mut()
             .zip(glev_poly_list.chunks_exact(decomp_level.0))
         {
-            for (decomp_poly, glev_block_poly) in input_mask_poly_decomp.iter().zip(glev_block.iter()) {
+            for (decomp_poly, glev_block_poly) in input_mask_poly_decomp.iter().zip(glev_block.iter().rev()) {
                 polynomial_wrapping_add_mul_assign(&mut buf_poly, &decomp_poly, &glev_block_poly);
             }
         }
