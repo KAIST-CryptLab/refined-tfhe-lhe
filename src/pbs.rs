@@ -11,7 +11,7 @@ use tfhe::core_crypto::{
 };
 use aligned_vec::{ABox, CACHELINE_ALIGN};
 use dyn_stack::{PodStack, ReborrowMut};
-use crate::{utils::*, automorphism::*, mod_switch::*};
+use crate::{utils::*, automorphism::*, fast_automorphism::*, mod_switch::*};
 
 pub fn generate_accumulator<Scalar, F>(
     polynomial_size: PolynomialSize,
@@ -136,6 +136,78 @@ pub fn pbs_to_glwe_by_trace_with_mod_switch<Scalar, InputCont, OutputCont, AccCo
     glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&acc_mod_down, &mut acc_mod_up);
 
     let out = trace(&acc_mod_up, auto_keys);
+    glwe_ciphertext_clone_from(output, &out);
+}
+
+pub fn pbs_to_glwe_by_fast_trace_with_mod_switch<Scalar, InputCont, OutputCont, AccCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut GlweCiphertext<OutputCont>,
+    accumulator: &GlweCiphertext<AccCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    fast_auto_keys: &HashMap<usize, FastAutomorphKey<ABox<[c64]>>>,
+) where
+    Scalar: UnsignedTorus + CastInto<usize>,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+    AccCont: Container<Element=Scalar>,
+{
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    assert_eq!(input.ciphertext_modulus(), accumulator.ciphertext_modulus());
+    assert_eq!(output.glwe_size(), accumulator.glwe_size());
+    assert_eq!(output.polynomial_size(), accumulator.polynomial_size());
+    assert_eq!(output.polynomial_size(), fourier_bsk.polynomial_size());
+
+    assert!(input.ciphertext_modulus().is_native_modulus());
+
+    let glwe_size = output.glwe_size();
+    let polynomial_size = output.polynomial_size();
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    let mut buffers = ComputationBuffers::new();
+
+    let fft = Fft::new(fourier_bsk.polynomial_size());
+    let fft = fft.as_view();
+
+    buffers.resize(
+        programmable_bootstrap_lwe_ciphertext_mem_optimized_requirement::<Scalar>(
+            output.glwe_size(),
+            output.polynomial_size(),
+            fft,
+        )
+        .unwrap()
+        .unaligned_bytes_required(),
+    );
+    let stack = buffers.stack();
+
+    let accumulator = accumulator.as_view();
+    let (mut local_accumulator_data, stack) = stack.collect_aligned(CACHELINE_ALIGN, accumulator.as_ref().iter().copied());
+    let mut local_accumulator = GlweCiphertextMutView::from_container(
+        &mut *local_accumulator_data,
+        accumulator.polynomial_size(),
+        accumulator.ciphertext_modulus(),
+    );
+
+    gen_blind_rotate_local_assign(
+        fourier_bsk.as_view(),
+        local_accumulator.as_mut_view(),
+        ModulusSwitchOffset(0),
+        LutCountLog(0),
+        input.as_ref(),
+        fft,
+        stack,
+    );
+
+    let log_polynomial_size = polynomial_size.0.ilog2() as usize;
+    let log_small_q = Scalar::BITS as usize - log_polynomial_size;
+    let small_ciphertext_modulus = CiphertextModulus::<Scalar>::try_new_power_of_2(log_small_q).unwrap();
+
+    let mut acc_mod_down = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, small_ciphertext_modulus);
+    glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two(&local_accumulator, &mut acc_mod_down);
+
+    let mut acc_mod_up = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native(&acc_mod_down, &mut acc_mod_up);
+
+    let out = fast_trace(&acc_mod_up, fast_auto_keys);
     glwe_ciphertext_clone_from(output, &out);
 }
 
