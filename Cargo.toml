@@ -12,16 +12,13 @@ aligned-vec = { version = "0.5.0" }
 dyn-stack = { version = "0.9" }
 aes = { version = "*" }
 rayon = { version = "*", optional = true }
+pulp = "0.18.8"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
 
 [[test]]
 name = "fourier_poly_mult"
-harness = false
-
-[[test]]
-name = "fourier_poly_mult128"
 harness = false
 
 [[test]]
