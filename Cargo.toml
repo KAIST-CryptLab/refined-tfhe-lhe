@@ -80,6 +80,10 @@ harness = false
 name = "bench_lwes_to_glwe"
 harness = false
 
+[[bench]]
+name = "bench_cbs"
+harness = false
+
 [features]
 default = ["monothread"]
 monothread = []

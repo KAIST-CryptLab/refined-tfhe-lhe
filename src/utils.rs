@@ -15,12 +15,16 @@ where
     KeyCont: Container<Element=Scalar>,
     C: Container<Element=Scalar>,
 {
+    let scaling = lwe_ctxt.ciphertext_modulus().get_power_of_two_scaling_to_native_torus();
+
     let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let decrypted = decrypted * scaling;
+
     let abs_err = {
-        let correct_val = correct_val * delta;
+        let correct_val = correct_val * delta * scaling;
         let d0 = decrypted.wrapping_sub(correct_val);
         let d1 = correct_val.wrapping_sub(decrypted);
-        std::cmp::min(d0, d1)
+        std::cmp::min(d0, d1) / scaling
     };
     let bit_err = if abs_err != Scalar::ZERO {Scalar::BITS as u32 - abs_err.leading_zeros()} else {0};
     let rounding = (decrypted & (delta >> 1)) << 1;
@@ -40,12 +44,16 @@ where
     KeyCont: Container<Element=Scalar>,
     C: Container<Element=Scalar>,
 {
+    let scaling = lwe_ctxt.ciphertext_modulus().get_power_of_two_scaling_to_native_torus();
+
     let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let decrypted = decrypted * scaling;
+
     let abs_err = {
-        let correct_val = correct_val * delta;
+        let correct_val = correct_val * delta * scaling;
         let d0 = decrypted.wrapping_sub(correct_val);
         let d1 = correct_val.wrapping_sub(decrypted);
-        std::cmp::min(d0, d1)
+        std::cmp::min(d0, d1) / scaling
     };
     let rounding = (decrypted & (delta >> 1)) << 1;
     let decoded = (decrypted.wrapping_add(rounding)) / delta;
@@ -64,12 +72,16 @@ where
     KeyCont: Container<Element=Scalar>,
     C: Container<Element=Scalar>,
 {
+    let scaling = lwe_ctxt.ciphertext_modulus().get_power_of_two_scaling_to_native_torus();
+
     let decrypted = decrypt_lwe_ciphertext(&lwe_secret_key, &lwe_ctxt).0;
+    let decrypted = decrypted * scaling;
+
     let abs_err = {
-        let correct_val = correct_val * delta;
+        let correct_val = correct_val * delta * scaling;
         let d0 = decrypted.wrapping_sub(correct_val);
         let d1 = correct_val.wrapping_sub(decrypted);
-        std::cmp::min(d0, d1)
+        std::cmp::min(d0, d1) / scaling
     };
     let bit_err = if abs_err != Scalar::ZERO {Scalar::BITS as u32 - abs_err.leading_zeros()} else {0};
     let rounding = (decrypted & (delta >> 1)) << 1;

@@ -1,14 +1,12 @@
 use std::collections::HashMap;
 use aligned_vec::{ABox, CACHELINE_ALIGN};
 use tfhe::core_crypto::{
-    prelude::{*, polynomial_algorithms::*},
     fft_impl::fft64::{
         c64,
         crypto::{
-            ggsw::FourierGgswCiphertextListView,
-            bootstrap::FourierLweBootstrapKeyView,
+            bootstrap::FourierLweBootstrapKeyView, ggsw::FourierGgswCiphertextListView
         },
-    },
+    }, prelude::{polynomial_algorithms::*, *}
 };
 use crate::{utils::*, automorphism::*, fast_automorphism::*, pbs::*, glwe_conv::*};
 
@@ -112,6 +110,8 @@ pub fn switch_scheme<Scalar, InputCont, OutputCont>(
     assert_eq!(glev.glwe_size(), ss_key.glwe_size());
     assert_eq!(glev.glwe_ciphertext_count().0, ggsw.decomposition_level_count().0);
 
+    ggsw.as_mut().fill(Scalar::ZERO);
+
     let glwe_size = glev.glwe_size();
     let glwe_dimension = glwe_size.to_glwe_dimension();
 
@@ -126,6 +126,41 @@ pub fn switch_scheme<Scalar, InputCont, OutputCont>(
     }
 }
 
+pub fn lwe_msb_bit_to_ggsw_by_pfpks<Scalar, InputCont, OutputCont, KeyCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut GgswCiphertext<OutputCont>,
+    fourier_bsk: FourierLweBootstrapKeyView,
+    pfpksk_list: &LwePrivateFunctionalPackingKeyswitchKeyList<KeyCont>,
+    log_lut_count: LutCountLog,
+) where
+    Scalar: UnsignedTorus + CastInto<usize>,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+    KeyCont: Container<Element=Scalar>,
+{
+    assert_eq!(input.lwe_size(), fourier_bsk.input_lwe_dimension().to_lwe_size());
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+
+    let ggsw_base_log = output.decomposition_base_log();
+    let ggsw_level = output.decomposition_level_count();
+    let ciphertext_modulus = output.ciphertext_modulus();
+
+    let lwe_size = fourier_bsk.output_lwe_dimension().to_lwe_size();
+    let mut lev = LweCiphertextList::new(Scalar::ZERO, lwe_size, LweCiphertextCount(ggsw_level.0), ciphertext_modulus);
+    lwe_msb_bit_to_lev(input, &mut lev, fourier_bsk, ggsw_base_log, ggsw_level, log_lut_count);
+
+    for (lwe, mut ggsw_level_matrix) in lev.iter().zip(output.iter_mut()) {
+        for (pfpksk, mut glwe) in pfpksk_list.iter()
+            .zip(ggsw_level_matrix.as_mut_glwe_list().iter_mut())
+        {
+            private_functional_keyswitch_lwe_ciphertext_into_glwe_ciphertext(
+                &pfpksk,
+                &mut glwe,
+                &lwe,
+            );
+        }
+    }
+}
 
 pub fn lwe_msb_bit_to_glev_by_trace_with_mod_switch<Scalar>(
     lwe_in: LweCiphertextView<Scalar>,
