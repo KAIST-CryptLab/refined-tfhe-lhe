@@ -10,7 +10,7 @@ use crate::{utils::*, glwe_keyswitch::*, fourier_glwe_keyswitch::*};
 // from https://github.com/KULeuven-COSIC/SortingHat
 // to automorphism on arbitrary GLWE dimension
 pub struct AutomorphKey<C: Container<Element=c64>> {
-    ksk: FourierGlweKeyswitchKey64<C>,
+    ksk: FourierGlweKeyswitchKey<C>,
     decomp_base_log: DecompositionBaseLog,
     decomp_level_count: DecompositionLevelCount,
     glwe_dimension: GlweDimension,
@@ -25,9 +25,10 @@ impl AutomorphKey<ABox<[c64]>> {
         glwe_dimension: GlweDimension,
         polynomial_size: PolynomialSize,
         auto_k: usize,
+        fft_type: FftType,
     ) -> Self {
         let glwe_size = glwe_dimension.to_glwe_size();
-        let ksk = FourierGlweKeyswitchKey64::new(glwe_size, glwe_size, polynomial_size, decomp_base_log, decomp_level_count);
+        let ksk = FourierGlweKeyswitchKey::new(glwe_size, glwe_size, polynomial_size, decomp_base_log, decomp_level_count, fft_type);
         AutomorphKey {
             ksk: ksk,
             decomp_base_log,
@@ -114,7 +115,7 @@ impl AutomorphKey<ABox<[c64]>> {
             ciphertext_modulus,
             generator,
         );
-        convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_ksk, &mut self.ksk);
+        convert_standard_glwe_keyswitch_key_to_fourier(&standard_ksk, &mut self.ksk);
     }
 
     fn keyswitch_ciphertext<Scalar, InputCont, OutputCont>(
@@ -126,7 +127,7 @@ impl AutomorphKey<ABox<[c64]>> {
         InputCont: Container<Element=Scalar>,
         OutputCont: ContainerMut<Element=Scalar>,
     {
-        keyswitch_glwe_ciphertext_64(&self.ksk, before, after);
+        keyswitch_glwe_ciphertext(&self.ksk, before, after);
     }
 
     pub fn auto<Scalar, InputCont, OutputCont>(
@@ -150,6 +151,7 @@ impl AutomorphKey<ABox<[c64]>> {
 pub fn gen_all_auto_keys<Scalar, G>(
     decomp_base_log: DecompositionBaseLog,
     decomp_level: DecompositionLevelCount,
+    fft_type: FftType,
     glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
     noise_parameters: impl DispersionParameter,
     generator: &mut EncryptionRandomGenerator<G>,
@@ -164,7 +166,7 @@ where
     let mut hm = HashMap::new();
     for i in 1..=(polynomial_size.0).ilog2() as usize {
         let k = polynomial_size.0 / (1 << (i - 1)) + 1;
-        let mut glwe_ksk = AutomorphKey::allocate(decomp_base_log, decomp_level, glwe_dimension, polynomial_size, i);
+        let mut glwe_ksk = AutomorphKey::allocate(decomp_base_log, decomp_level, glwe_dimension, polynomial_size, i, fft_type);
         let mut before_key = glwe_secret_key.clone();
 
         glwe_ksk.fill_with_automorph_key(&mut before_key, &glwe_secret_key, k, noise_parameters, generator);
