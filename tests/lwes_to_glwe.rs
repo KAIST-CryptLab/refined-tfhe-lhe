@@ -1,21 +1,36 @@
 use std::time::Instant;
-
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{automorphism::*, convert_lwes_to_glwe_by_trace_with_mod_switch};
+use hom_trace::{automorphism::*, convert_lwes_to_glwe_by_trace_with_preprocessing, FftType};
+
+type Scalar = u64;
 
 fn main() {
-    type Scalar = u64;
     let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(15);
-    let auto_level = DecompositionLevelCount(2);
-    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
+    let lwe_count = 16;
+    let auto_base_log = DecompositionBaseLog(10);
+    let auto_level = DecompositionLevelCount(4);
+    let fft_type = FftType::Vanilla;
 
-    println!("PolynomialSize: {}, GlweDim: {}, AutoBaseLog: {}, AutoLevel: {}",
-        polynomial_size.0, glwe_dimension.0, auto_base_log.0, auto_level.0,
+    test_lwes_to_glwe(polynomial_size, glwe_dimension, glwe_modular_std_dev, lwe_count, auto_base_log, auto_level, fft_type);
+}
+
+fn test_lwes_to_glwe(
+    polynomial_size: PolynomialSize,
+    glwe_dimension: GlweDimension,
+    glwe_modular_std_dev: impl DispersionParameter,
+    lwe_count: usize,
+    auto_base_log: DecompositionBaseLog,
+    auto_level: DecompositionLevelCount,
+    fft_type: FftType,
+) {
+    println!("PolynomialSize: {}, GlweDim: {}, AutoBaseLog: {}, AutoLevel: {}, fft type: {:?}, # LWE: {}",
+        polynomial_size.0, glwe_dimension.0, auto_base_log.0, auto_level.0, fft_type, lwe_count
     );
+
+    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
 
     // Set random generators and buffers
     let mut boxed_seeder = new_seeder();
@@ -35,13 +50,13 @@ fn main() {
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
+        fft_type,
         &glwe_sk,
         glwe_modular_std_dev,
         &mut encryption_generator,
     );
 
     // Set input LWEs
-    let lwe_count = 1 << 1;
     let modulus_bit = 4usize;
     let modulus_sup = 1 << modulus_bit;
     let log_scale = Scalar::BITS as usize - (modulus_bit + 1);
@@ -59,11 +74,11 @@ fn main() {
 
     // warm-up
     for _ in 0..100 {
-        convert_lwes_to_glwe_by_trace_with_mod_switch(&input_lwes, &mut output, &auto_keys);
+        convert_lwes_to_glwe_by_trace_with_preprocessing(&input_lwes, &mut output, &auto_keys);
     }
 
     let now = Instant::now();
-    convert_lwes_to_glwe_by_trace_with_mod_switch(&input_lwes, &mut output, &auto_keys);
+    convert_lwes_to_glwe_by_trace_with_preprocessing(&input_lwes, &mut output, &auto_keys);
     let time = now.elapsed();
 
     let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));

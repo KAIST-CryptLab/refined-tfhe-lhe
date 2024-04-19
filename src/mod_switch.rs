@@ -1,74 +1,8 @@
 use tfhe::core_crypto::prelude::*;
 
-pub fn glwe_ciphertext_mod_up_from_native_to_non_native_power_of_two<ScalarIn, ScalarOut, InputCont, OutputCont>(
-    input: &GlweCiphertext<InputCont>,
-    output: &mut GlweCiphertext<OutputCont>,
-) where
-    ScalarIn: UnsignedInteger + CastInto<ScalarOut>,
-    ScalarOut: UnsignedInteger,
-    InputCont: Container<Element=ScalarIn>,
-    OutputCont: ContainerMut<Element=ScalarOut>,
-{
-    assert!(
-        input.ciphertext_modulus().is_native_modulus(),
-        "input ciphertext modulus is not native"
-    );
-    assert!(
-        output.ciphertext_modulus().is_non_native_power_of_two(),
-        "output ciphertext modulus is not non-native power-of-two"
-    );
-    assert!(
-        ScalarOut::BITS > ScalarIn::BITS,
-        "output ciphertext modulus is not greater than input ciphertext modulus"
-    );
-
-    let output_ciphertext_modulus = output.ciphertext_modulus();
-    for (src, dst) in input.as_ref().iter().zip(output.as_mut().iter_mut()) {
-        if *src >> (ScalarIn::BITS - 1) == ScalarIn::ZERO {
-            *dst = (*src).cast_into();
-        } else {
-            let neg_val: ScalarOut = (*src).wrapping_neg().cast_into();
-            *dst = neg_val.wrapping_neg();
-        }
-        *dst = (*dst).wrapping_mul(output_ciphertext_modulus.get_power_of_two_scaling_to_native_torus());
-    }
-}
-
-pub fn glwe_ciphertext_mod_down_from_non_native_power_of_two_to_native<ScalarIn, ScalarOut, InputCont, OutputCont> (
-    input: &GlweCiphertext<InputCont>,
-    output: &mut GlweCiphertext<OutputCont>,
-) where
-    ScalarIn: UnsignedInteger + CastInto<ScalarOut>,
-    ScalarOut: UnsignedInteger,
-    InputCont: Container<Element=ScalarIn>,
-    OutputCont: ContainerMut<Element=ScalarOut>,
-{
-    assert!(
-        input.ciphertext_modulus().is_non_native_power_of_two(),
-        "input ciphertext modulus is not non-native power-of-two"
-    );
-
-    assert!(
-        output.ciphertext_modulus().is_native_modulus(),
-        "output ciphertext modulus is not native"
-    );
-
-    assert!(
-        ScalarOut::BITS < ScalarIn::BITS,
-        "output ciphertext modulus is not greater than input ciphertext modulus"
-    );
-
-    let input_ciphertext_modulus = input.ciphertext_modulus();
-    let divisor: ScalarIn = (input_ciphertext_modulus.get_custom_modulus() >> ScalarOut::BITS).cast_into();
-    for (src, dst) in input.as_ref().iter().zip(output.as_mut().iter_mut()) {
-        let val = (*src).wrapping_div(input_ciphertext_modulus.get_power_of_two_scaling_to_native_torus());
-        *dst = ((val - val % divisor) / divisor).cast_into();
-    }
-}
-
-pub fn glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two<Scalar, InputCont, OutputCont> (
-    input: &GlweCiphertext<InputCont>,
-    output: &mut GlweCiphertext<OutputCont>,
+pub fn lwe_ciphertext_mod_switch_from_native_to_non_native_power_of_two<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut LweCiphertext<OutputCont>,
 ) where
     Scalar: UnsignedInteger,
     InputCont: Container<Element=Scalar>,
@@ -78,7 +12,6 @@ pub fn glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two<Scalar, I
         input.ciphertext_modulus().is_native_modulus(),
         "input ciphertext modulus is not native"
     );
-
     assert!(
         output.ciphertext_modulus().is_non_native_power_of_two(),
         "output ciphertext modulus is not non-native power-of-two"
@@ -86,14 +19,15 @@ pub fn glwe_ciphertext_mod_down_from_native_to_non_native_power_of_two<Scalar, I
 
     let output_ciphertext_modulus = output.ciphertext_modulus();
     let divisor = output_ciphertext_modulus.get_power_of_two_scaling_to_native_torus();
-    for (src, dst) in input.as_ref().iter().zip(output.as_mut().iter_mut()) {
+    for (src, dst) in input.as_ref().iter().zip(output.as_mut().iter_mut())
+    {
         *dst = *src - (*src) % divisor;
     }
 }
 
-pub fn glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native<Scalar, InputCont, OutputCont> (
-    input: &GlweCiphertext<InputCont>,
-    output: &mut GlweCiphertext<OutputCont>,
+pub fn lwe_ciphertext_mod_raise_from_non_native_power_of_two_to_native<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut LweCiphertext<OutputCont>,
 ) where
     Scalar: UnsignedInteger,
     InputCont: Container<Element=Scalar>,
@@ -103,7 +37,6 @@ pub fn glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native<Scalar, Inp
         input.ciphertext_modulus().is_non_native_power_of_two(),
         "input ciphertext modulus is not non-native power-of-two"
     );
-
     assert!(
         output.ciphertext_modulus().is_native_modulus(),
         "output ciphertext modulus is not native"
@@ -114,4 +47,47 @@ pub fn glwe_ciphertext_mod_up_from_non_native_power_of_two_to_native<Scalar, Inp
     for (src, dst) in input.as_ref().iter().zip(output.as_mut().iter_mut()) {
         *dst = (*src).wrapping_div(scaling_factor);
     }
+}
+
+pub fn lwe_preprocessing_assign<Scalar, ContMut>(
+    input: &mut LweCiphertext<ContMut>,
+    polynomial_size: PolynomialSize,
+) where
+    Scalar: UnsignedInteger,
+    ContMut: ContainerMut<Element=Scalar>,
+{
+    assert!(
+        input.ciphertext_modulus().is_native_modulus(),
+        "input ciphertext modulus is not native"
+    );
+    assert!(
+        Scalar::BITS > polynomial_size.0.ilog2() as usize
+    );
+
+    let log_small_q = Scalar::BITS - polynomial_size.0.ilog2() as usize;
+    let small_ciphertext_modulus = CiphertextModulus::<Scalar>::try_new_power_of_2(log_small_q).unwrap();
+
+    let mut buf = LweCiphertext::new(Scalar::ZERO, input.lwe_size(), small_ciphertext_modulus);
+
+    lwe_ciphertext_mod_switch_from_native_to_non_native_power_of_two(&input, &mut buf);
+    lwe_ciphertext_mod_raise_from_non_native_power_of_two_to_native(&buf, input);
+}
+
+pub fn lwe_preprocessing<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut LweCiphertext<OutputCont>,
+    polynomial_size: PolynomialSize,
+) where
+    Scalar: UnsignedInteger,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    assert!(
+        input.ciphertext_modulus().is_native_modulus(),
+        "input ciphertext modulus is not native"
+    );
+
+    output.as_mut().clone_from_slice(input.as_ref());
+    lwe_preprocessing_assign(output, polynomial_size);
 }

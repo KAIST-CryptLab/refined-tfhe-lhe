@@ -22,15 +22,7 @@ name = "fourier_poly_mult"
 harness = false
 
 [[test]]
-name = "trace"
-harness = false
-
-[[test]]
-name = "trace_with_mod_switch"
-harness = false
-
-[[test]]
-name = "lwe_to_glwe_const"
+name = "pbs"
 harness = false
 
 [[test]]
@@ -38,15 +30,15 @@ name = "pksk"
 harness = false
 
 [[test]]
+name = "glwe_keyswitch"
+harness = false
+
+[[test]]
+name = "lwe_to_glwe"
+harness = false
+
+[[test]]
 name = "lwes_to_glwe"
-harness = false
-
-[[test]]
-name = "pbs"
-harness = false
-
-[[test]]
-name = "pbs_to_glwe"
 harness = false
 
 [[test]]
@@ -63,10 +55,6 @@ harness = false
 
 [[test]]
 name = "aes_eval"
-harness = false
-
-[[test]]
-name = "glwe_keyswitch"
 harness = false
 
 [[bench]]
