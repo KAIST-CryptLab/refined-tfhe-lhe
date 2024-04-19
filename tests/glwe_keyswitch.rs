@@ -16,7 +16,7 @@ fn main() {
     let decomp_level_count_to_small = DecompositionLevelCount(6);
     let decomp_base_log_to_small = DecompositionBaseLog(8);
 
-    let decomp_level_count_to_large = DecompositionLevelCount(3);
+    let decomp_level_count_to_large = DecompositionLevelCount(4);
     let decomp_base_log_to_large = DecompositionBaseLog(10);
 
     test_glwe_keyswitch(
@@ -95,14 +95,15 @@ fn test_glwe_keyswitch(
         ciphertext_modulus,
         &mut encryption_generator,
     );
-    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey64::new(
+    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey::new(
         large_glwe_size,
         glwe_size,
         polynomial_size,
         decomp_base_log_to_small,
         decomp_level_count_to_small,
+        FftType::Split32,
     );
-    convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
+    convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
 
     let mut output = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
@@ -114,7 +115,7 @@ fn test_glwe_keyswitch(
             &large_ct,
             &mut output,
         );
-        keyswitch_glwe_ciphertext_64(
+        keyswitch_glwe_ciphertext(
             &fourier_glwe_ksk,
             &large_ct,
             &mut output,
@@ -141,7 +142,7 @@ fn test_glwe_keyswitch(
 
     let now = Instant::now();
     for _ in 0..num_repeat {
-        keyswitch_glwe_ciphertext_64(
+        keyswitch_glwe_ciphertext(
             &fourier_glwe_ksk,
             &large_ct,
             &mut output,
@@ -171,14 +172,15 @@ fn test_glwe_keyswitch(
         ciphertext_modulus,
         &mut encryption_generator,
     );
-    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey64::new(
+    let mut fourier_glwe_ksk = FourierGlweKeyswitchKey::new(
         glwe_size,
         large_glwe_size,
         polynomial_size,
         decomp_base_log_to_large,
         decomp_level_count_to_large,
+        FftType::Split32,
     );
-    convert_standard_glwe_keyswitch_key_64_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
+    convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
     let mut output = GlweCiphertext::new(Scalar::ZERO, large_glwe_size, polynomial_size, ciphertext_modulus);
 
@@ -201,7 +203,7 @@ fn test_glwe_keyswitch(
 
     let now = Instant::now();
     for _ in 0..num_repeat {
-        keyswitch_glwe_ciphertext_64(
+        keyswitch_glwe_ciphertext(
             &fourier_glwe_ksk,
             &ct,
             &mut output,

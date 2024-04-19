@@ -1,7 +1,8 @@
 use tfhe::core_crypto::{
-    prelude::polynomial_algorithms::*,
-    prelude::*,
+    algorithms::slice_algorithms::slice_wrapping_opposite_assign, prelude::{polynomial_algorithms::*, *}
 };
+
+use crate::{encrypt_glev_ciphertext, GlevCiphertextList};
 
 pub struct GlweKeyswitchKey<C: Container>
 where
@@ -84,17 +85,32 @@ impl<Scalar: UnsignedInteger, C: Container<Element=Scalar>> GlweKeyswitchKey<C>
         PolynomialList::from_container(self.data.as_ref(), self.polynomial_size)
     }
 
-    pub fn glev_poly_count(&self) -> usize {
-        let output_glwe_size = self.output_glwe_dimension().to_glwe_size().0;
-        let decomp_level_count = self.decomp_level_count().0;
-
-        output_glwe_size * decomp_level_count
+    pub fn as_glev_ciphertext_list(&self) -> GlevCiphertextList<&'_ [Scalar]> {
+        GlevCiphertextList::from_container(
+            self.data.as_ref(),
+            self.output_glwe_dimension.to_glwe_size(),
+            self.polynomial_size,
+            self.decomp_base_log,
+            self.decomp_level_count,
+            self.ciphertext_modulus,
+        )
     }
 }
 
 impl<Scalar: UnsignedInteger, C: ContainerMut<Element=Scalar>> GlweKeyswitchKey<C> {
     pub fn as_mut_polynomial_list(&mut self) -> PolynomialList<&'_ mut [Scalar]> {
         PolynomialList::from_container(self.data.as_mut(), self.polynomial_size)
+    }
+
+    pub fn as_mut_glev_ciphertext_list(&mut self) -> GlevCiphertextList<&'_ mut [Scalar]> {
+        GlevCiphertextList::from_container(
+            self.data.as_mut(),
+            self.output_glwe_dimension.to_glwe_size(),
+            self.polynomial_size,
+            self.decomp_base_log,
+            self.decomp_level_count,
+            self.ciphertext_modulus,
+        )
     }
 }
 
@@ -108,11 +124,10 @@ impl<Scalar: UnsignedInteger> GlweKeyswitchKeyOwned<Scalar> {
         decomp_level_count: DecompositionLevelCount,
         ciphertext_modulus: CiphertextModulus::<Scalar>,
     ) -> GlweKeyswitchKeyOwned<Scalar> {
-        let input_glwe_size = input_glwe_dimension.to_glwe_size().0;
-        let output_glwe_size = output_glwe_dimension.to_glwe_size().0;
+        let output_glwe_size = output_glwe_dimension.to_glwe_size();
 
         Self::from_container(
-            vec![fill_with; input_glwe_size * output_glwe_size * polynomial_size.0 * decomp_level_count.0],
+            vec![fill_with; input_glwe_dimension.0 * output_glwe_size.0 * polynomial_size.0 * decomp_level_count.0],
             input_glwe_dimension,
             output_glwe_dimension,
             polynomial_size,
@@ -157,7 +172,6 @@ where
         output_glwe_sk,
         &mut new_glwe_keyswitch_key,
         noise_parameters,
-        ciphertext_modulus,
         generator,
     );
 
@@ -169,7 +183,6 @@ pub fn generate_glwe_keyswitch_key<Scalar, InputKeyCont, OutputKeyCont, KSKeyCon
     output_glwe_sk: &GlweSecretKey<OutputKeyCont>,
     glwe_keyswitch_key: &mut GlweKeyswitchKey<KSKeyCont>,
     noise_parameters: impl DispersionParameter,
-    ciphertext_modulus: CiphertextModulus::<Scalar>,
     generator: &mut EncryptionRandomGenerator<Gen>,
 ) where
     Scalar: UnsignedTorus,
@@ -183,29 +196,22 @@ pub fn generate_glwe_keyswitch_key<Scalar, InputKeyCont, OutputKeyCont, KSKeyCon
     assert_eq!(glwe_keyswitch_key.polynomial_size(), input_glwe_sk.polynomial_size());
     assert_eq!(glwe_keyswitch_key.polynomial_size(), output_glwe_sk.polynomial_size());
 
-    let output_glwe_size = glwe_keyswitch_key.output_glwe_dimension().to_glwe_size();
     let polynomial_size = glwe_keyswitch_key.polynomial_size();
-    let decomp_base_log = glwe_keyswitch_key.decomp_base_log().0;
-    let decomp_level_count = glwe_keyswitch_key.decomp_level_count().0;
 
-    for (input_sk_i, mut glwe_ks_chunk) in input_glwe_sk.as_polynomial_list().iter()
-        .zip(glwe_keyswitch_key.as_mut_polynomial_list().chunks_exact_mut(output_glwe_size.0 * decomp_level_count))
+    for (input_sk_poly, mut glev) in input_glwe_sk.as_polynomial_list().iter()
+        .zip(glwe_keyswitch_key.as_mut_glev_ciphertext_list().iter_mut())
     {
-        for k in 0..decomp_level_count {
-            let level = k + 1;
-            let log_scale = Scalar::BITS - decomp_base_log * level;
+        let mut neg_sk_poly = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));
+        neg_sk_poly.as_mut().clone_from_slice(input_sk_poly.as_ref());
+        slice_wrapping_opposite_assign(neg_sk_poly.as_mut());
 
-            let scaled_pt = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                (*input_sk_i.as_ref().get(i).unwrap()).wrapping_neg() << log_scale
-            }).collect::<Vec<Scalar>>());
-
-            let mut buf_glwe = GlweCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, ciphertext_modulus);
-            encrypt_glwe_ciphertext(&output_glwe_sk, &mut buf_glwe, &scaled_pt, noise_parameters, generator);
-
-            for (j, poly) in buf_glwe.as_polynomial_list().iter().enumerate() {
-                glwe_ks_chunk.get_mut(j * decomp_level_count + k).as_mut().clone_from_slice(poly.as_ref());
-            }
-        }
+        encrypt_glev_ciphertext(
+            &output_glwe_sk,
+            &mut glev,
+            &neg_sk_poly,
+            noise_parameters,
+            generator
+        );
     }
 }
 
@@ -252,35 +258,44 @@ pub fn standard_keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCo
     let ciphertext_modulus = glwe_keyswitch_key.ciphertext_modulus();
 
     output_glwe_ciphertext.as_mut().fill(Scalar::ZERO);
-    output_glwe_ciphertext.get_mut_body().as_mut().clone_from_slice(input_glwe_ciphertext.get_body().as_ref());
+    let (input_mask, input_body) = input_glwe_ciphertext.get_mask_and_body();
+    let mut output_body = output_glwe_ciphertext.get_mut_body();
+    output_body.as_mut().clone_from_slice(input_body.as_ref());
 
     let decomposer = SignedDecomposer::new(
         decomp_base_log,
         decomp_level,
     );
 
-    let glev_poly_count = glwe_keyswitch_key.glev_poly_count();
-    for (glev_poly_list, input_mask_poly) in glwe_keyswitch_key.as_polynomial_list().chunks_exact(glev_poly_count)
-        .zip(input_glwe_ciphertext.get_mask().as_polynomial_list().iter())
+    for (input_mask_poly, glev) in input_mask.as_polynomial_list().iter()
+        .zip(glwe_keyswitch_key.as_glev_ciphertext_list().iter())
     {
-        let mut input_mask_poly_decomp = PolynomialList::new(Scalar::ZERO, polynomial_size, PolynomialCount(decomp_level.0));
+        let mut input_decomp_poly_list = PolynomialList::new(
+            Scalar::ZERO,
+            polynomial_size,
+            PolynomialCount(decomp_level.0),
+        );
 
         for (i, val) in input_mask_poly.iter().enumerate() {
             let decomposition_iter = decomposer.decompose(*val);
 
             for (j, decomp_val) in decomposition_iter.into_iter().enumerate() {
-                *input_mask_poly_decomp.get_mut(j).as_mut().get_mut(i).unwrap() = decomp_val.value();
+                *input_decomp_poly_list.get_mut(j).as_mut().get_mut(i).unwrap() = decomp_val.value();
             }
         }
 
-        let mut buf = GlweCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, ciphertext_modulus);
-        for (mut buf_poly, glev_block) in buf.as_mut_polynomial_list().iter_mut()
-            .zip(glev_poly_list.chunks_exact(decomp_level.0))
+        for (decomp_poly, glwe) in input_decomp_poly_list.iter()
+            .zip(glev.as_glwe_ciphertext_list().iter().rev())
         {
-            for (decomp_poly, glev_block_poly) in input_mask_poly_decomp.iter().zip(glev_block.iter().rev()) {
-                polynomial_wrapping_add_mul_assign(&mut buf_poly, &decomp_poly, &glev_block_poly);
+            let mut buf = GlweCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, ciphertext_modulus);
+
+            for (mut buf_poly, glwe_poly) in buf.as_mut_polynomial_list().iter_mut()
+                .zip(glwe.as_polynomial_list().iter())
+            {
+                polynomial_wrapping_mul(&mut buf_poly, &decomp_poly, &glwe_poly);
             }
+
+            glwe_ciphertext_add_assign(output_glwe_ciphertext, &buf);
         }
-        glwe_ciphertext_add_assign(output_glwe_ciphertext, &buf);
     }
 }

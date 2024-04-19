@@ -1,115 +1,86 @@
 use aligned_vec::{avec, ABox};
+use dyn_stack::ReborrowMut;
 use tfhe::core_crypto::{
     prelude::*,
-    algorithms::polynomial_algorithms::polynomial_wrapping_add_assign,
-    fft_impl::fft64::{
-        c64,
-        crypto::ggsw::FourierGgswCiphertextListView,
-    },
+    fft_impl::fft64::c64,
 };
 
-use crate::GlweKeyswitchKey;
+use crate::{
+    glev_ciphertext::*,
+    fourier_glev_ciphertext::*,
+    fourier_glwe_ciphertext::*,
+    GlweKeyswitchKey,
+    fourier_poly_mult_and_add,
+};
 
-pub(crate) struct WrapperFourierGgswCiphertextList<C: Container<Element=c64>> {
-    fourier: FourierGgswCiphertextList<C>,
-    polynomial_size: PolynomialSize,
+#[derive(Debug, Clone, Copy)]
+pub enum FftType {
+    Vanilla,
+    Split32,
+    Split16,
 }
 
-impl<C: Container<Element=c64>> WrapperFourierGgswCiphertextList<C> {
-    pub fn from_container(
-        data: C,
-        polynomial_size: PolynomialSize,
-        decomp_base_log: DecompositionBaseLog,
-        decomp_level_count: DecompositionLevelCount,
-        count: usize,
-    ) -> Self {
-        assert_eq!(
-            data.container_len(),
-            count
-                * polynomial_size.to_fourier_polynomial_size().0
-                * decomp_level_count.0
-        );
-
-        let fourier = FourierGgswCiphertextList::new(
-            data,
-            count,
-            GlweSize(1),
-            polynomial_size,
-            decomp_base_log,
-            decomp_level_count,
-        );
-
-        Self {
-            fourier: fourier,
-            polynomial_size: polynomial_size,
+impl FftType {
+    pub fn num_split(&self) -> usize {
+        match self {
+            FftType::Vanilla => 1,
+            FftType::Split32 => 2,
+            FftType::Split16 => 4,
         }
     }
 
-    pub fn as_fourier_ggsw_ciphertext_list_view(&self) -> FourierGgswCiphertextListView {
-        self.fourier.as_view()
+    pub fn split_base_log(&self) -> usize {
+        match self {
+            FftType::Vanilla => 64,
+            FftType::Split32 => 32,
+            FftType::Split16 => 16,
+        }
     }
 }
 
-
-pub struct FourierGlweKeyswitchKey64<C: Container<Element=c64>>
+pub struct FourierGlweKeyswitchKey<C: Container<Element = c64>>
 {
-    fourier_upper: WrapperFourierGgswCiphertextList<C>,
-    fourier_lower: WrapperFourierGgswCiphertextList<C>,
+    data: C,
     input_glwe_size: GlweSize,
     output_glwe_size: GlweSize,
+    polynomial_size: PolynomialSize,
     decomp_base_log: DecompositionBaseLog,
     decomp_level_count: DecompositionLevelCount,
+    fft_type: FftType,
 }
 
-impl<C: Container<Element=c64>> FourierGlweKeyswitchKey64<C> {
+impl<C: Container<Element = c64>> FourierGlweKeyswitchKey<C> {
     pub fn from_container(
-        data_upper: C,
-        data_lower: C,
+        container: C,
         input_glwe_size: GlweSize,
         output_glwe_size: GlweSize,
         polynomial_size: PolynomialSize,
         decomp_base_log: DecompositionBaseLog,
         decomp_level_count: DecompositionLevelCount,
+        fft_type: FftType,
     ) -> Self {
-        let wrapper_ggsw_count = input_glwe_size.to_glwe_dimension().0 * output_glwe_size.0;
-
+        let fourier_glev_elem_count = input_glwe_size.to_glwe_dimension().0
+            * output_glwe_size.0
+            * polynomial_size.to_fourier_polynomial_size().0
+            * decomp_level_count.0;
         assert_eq!(
-            data_upper.container_len(),
-            wrapper_ggsw_count
-                * polynomial_size.to_fourier_polynomial_size().0
-                * decomp_level_count.0
-        );
-        assert_eq!(
-            data_lower.container_len(),
-            wrapper_ggsw_count
-                * polynomial_size.to_fourier_polynomial_size().0
-                * decomp_level_count.0
+            container.container_len(),
+            fourier_glev_elem_count * fft_type.num_split(),
         );
 
         Self {
-            fourier_upper: WrapperFourierGgswCiphertextList::from_container(
-                data_upper,
-                polynomial_size,
-                decomp_base_log,
-                decomp_level_count,
-                wrapper_ggsw_count,
-            ),
-            fourier_lower: WrapperFourierGgswCiphertextList::from_container(
-                data_lower,
-                polynomial_size,
-                decomp_base_log,
-                decomp_level_count,
-                wrapper_ggsw_count,
-            ),
+            data: container,
             input_glwe_size: input_glwe_size,
             output_glwe_size: output_glwe_size,
+            polynomial_size: polynomial_size,
             decomp_base_log: decomp_base_log,
             decomp_level_count: decomp_level_count,
+            fft_type,
         }
     }
 
     pub fn polynomial_size(&self) -> PolynomialSize {
-        self.fourier_lower.polynomial_size
+        self.polynomial_size
     }
 
     pub fn input_glwe_size(&self) -> GlweSize {
@@ -128,72 +99,71 @@ impl<C: Container<Element=c64>> FourierGlweKeyswitchKey64<C> {
         self.decomp_level_count
     }
 
-    pub fn fourier_upper(&self) -> FourierGgswCiphertextListView {
-        self.fourier_upper.as_fourier_ggsw_ciphertext_list_view()
+    pub fn fft_type(&self) -> FftType {
+        self.fft_type
     }
 
-    pub fn fourier_lower(&self) -> FourierGgswCiphertextListView {
-        self.fourier_lower.as_fourier_ggsw_ciphertext_list_view()
+    pub fn as_fourier_glev_ciphertext_list(&self) -> FourierGlevCiphertextListView {
+        FourierGlevCiphertextList::from_container(
+            self.data.as_ref(),
+            self.output_glwe_size,
+            self.polynomial_size,
+            self.decomp_base_log,
+            self.decomp_level_count,
+        )
     }
 }
 
-pub type FourierGlweKeyswitchKey64Owned = FourierGlweKeyswitchKey64<ABox<[c64]>>;
+impl<C: ContainerMut<Element = c64>> FourierGlweKeyswitchKey<C> {
+    pub fn as_mut_fourier_glev_ciphertext_list(&mut self) -> FourierGlevCiphertextListMutView {
+        FourierGlevCiphertextList::from_container(
+            self.data.as_mut(),
+            self.output_glwe_size,
+            self.polynomial_size,
+            self.decomp_base_log,
+            self.decomp_level_count,
+        )
+    }
+}
 
-impl FourierGlweKeyswitchKey64Owned {
+pub type FourierGlweKeyswitchKeyOwned = FourierGlweKeyswitchKey<ABox<[c64]>>;
+
+impl FourierGlweKeyswitchKeyOwned {
     pub fn new(
         input_glwe_size: GlweSize,
         output_glwe_size: GlweSize,
         polynomial_size: PolynomialSize,
         decomp_base_log: DecompositionBaseLog,
         decomp_level_count: DecompositionLevelCount,
+        fft_type: FftType,
     ) -> Self {
-        let wrapper_ggsw_count = input_glwe_size.to_glwe_dimension().0 * output_glwe_size.0;
-
-        let data_upper = avec![
-            c64::default();
-            wrapper_ggsw_count
-                * polynomial_size.to_fourier_polynomial_size().0
-                * decomp_level_count.0
-        ].into_boxed_slice();
-        let data_lower = avec![
-            c64::default();
-            wrapper_ggsw_count
-                * polynomial_size.to_fourier_polynomial_size().0
-                * decomp_level_count.0
-        ].into_boxed_slice();
+        let count = input_glwe_size.to_glwe_dimension().0
+            * output_glwe_size.0
+            * polynomial_size.to_fourier_polynomial_size().0
+            * decomp_level_count.0
+            * fft_type.num_split();
 
         Self {
-            fourier_upper: WrapperFourierGgswCiphertextList::from_container(
-                data_upper,
-                polynomial_size,
-                decomp_base_log,
-                decomp_level_count,
-                wrapper_ggsw_count,
-            ),
-            fourier_lower: WrapperFourierGgswCiphertextList::from_container(
-                data_lower,
-                polynomial_size,
-                decomp_base_log,
-                decomp_level_count,
-                wrapper_ggsw_count,
-            ),
+            data: avec![c64::default(); count].into_boxed_slice(),
             input_glwe_size: input_glwe_size,
             output_glwe_size: output_glwe_size,
+            polynomial_size: polynomial_size,
             decomp_base_log: decomp_base_log,
             decomp_level_count: decomp_level_count,
+            fft_type: fft_type,
         }
     }
 }
 
-pub fn convert_standard_glwe_keyswitch_key_64_to_fourier<Scalar, InputCont, OutputCont>(
+pub fn convert_standard_glwe_keyswitch_key_to_fourier<Scalar, InputCont, OutputCont>(
     input_ksk: &GlweKeyswitchKey<InputCont>,
-    output_ksk: &mut FourierGlweKeyswitchKey64<OutputCont>,
+    output_ksk: &mut FourierGlweKeyswitchKey<OutputCont>,
 ) where
     Scalar: UnsignedTorus,
     InputCont: Container<Element=Scalar>,
     OutputCont: ContainerMut<Element=c64>,
 {
-    assert_eq!(Scalar::BITS, 64);
+    assert_eq!(Scalar::BITS, 64, "current fourier GLWE ksk works on q = 2^64");
     assert_eq!(input_ksk.polynomial_size(), output_ksk.polynomial_size());
     assert_eq!(input_ksk.input_glwe_dimension().to_glwe_size(), output_ksk.input_glwe_size());
     assert_eq!(input_ksk.output_glwe_dimension().to_glwe_size(), output_ksk.output_glwe_size());
@@ -201,65 +171,44 @@ pub fn convert_standard_glwe_keyswitch_key_64_to_fourier<Scalar, InputCont, Outp
     assert_eq!(input_ksk.decomp_level_count(), output_ksk.decomp_level_count());
 
     let polynomial_size = output_ksk.polynomial_size();
-    let input_glwe_size = output_ksk.input_glwe_size();
     let output_glwe_size = output_ksk.output_glwe_size();
     let decomp_base_log = output_ksk.decomp_base_log();
     let decomp_level = output_ksk.decomp_level_count();
     let ciphertext_modulus = input_ksk.ciphertext_modulus();
 
-    let poly_count = input_glwe_size.to_glwe_dimension().0 * output_glwe_size.0 * decomp_level.0;
+    let fft_type = output_ksk.fft_type();
+    let num_split = fft_type.num_split();
+    let split_base_log = fft_type.split_base_log();
 
-    let mut data_upper = PolynomialList::new(Scalar::ZERO, polynomial_size, PolynomialCount(poly_count));
-    let mut data_lower = PolynomialList::new(Scalar::ZERO, polynomial_size, PolynomialCount(poly_count));
-
-    for ((val_upper, val_lower), val)
-    in data_upper.as_mut().iter_mut()
-        .zip(data_lower.as_mut().iter_mut())
-        .zip(input_ksk.as_ref().iter())
+    for (input_glev, mut output_split_fourier_glev_list) in input_ksk.as_glev_ciphertext_list().iter()
+        .zip(output_ksk.as_mut_fourier_glev_ciphertext_list().chunks_exact_mut(num_split))
     {
-        *val_upper = (*val) >> 32;
-        *val_lower = ((*val) << 32) >> 32;
-    }
+        for (k, mut output_split_fourier_glev) in output_split_fourier_glev_list.iter_mut().enumerate() {
+            let mut input_split_glev = GlevCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, decomp_base_log, decomp_level, ciphertext_modulus);
 
-    let data_upper = GgswCiphertextList::from_container(
-        data_upper.as_ref(),
-        GlweSize(1),
-        polynomial_size,
-        decomp_base_log,
-        decomp_level,
-        ciphertext_modulus,
-    );
-    let data_lower = GgswCiphertextList::from_container(
-        data_lower.as_ref(),
-        GlweSize(1),
-        polynomial_size,
-        decomp_base_log,
-        decomp_level,
-        ciphertext_modulus,
-    );
+            for (src, dst) in input_glev.as_ref().iter()
+                .zip(input_split_glev.as_mut().iter_mut())
+            {
+                let shift_up_bit = split_base_log * (num_split - (k + 1));
+                let shift_down_bit = split_base_log * (num_split - 1);
+                *dst = ((*src) << shift_up_bit) >> shift_down_bit;
+            }
 
-    let fourier_upper = &mut output_ksk.fourier_upper.fourier;
-    for (ggsw, mut fourier_ggsw) in data_upper.iter().zip(fourier_upper.as_mut_view().into_ggsw_iter()) {
-        convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
-    }
-
-    let fourier_lower = &mut output_ksk.fourier_lower.fourier;
-    for (ggsw, mut fourier_ggsw) in data_lower.iter().zip(fourier_lower.as_mut_view().into_ggsw_iter()) {
-        convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
+            convert_standard_glev_ciphertext_to_fourier(&input_split_glev, &mut output_split_fourier_glev);
+        }
     }
 }
 
-pub fn keyswitch_glwe_ciphertext_64<Scalar, KSKeyCont, InputCont, OutputCont>(
-    glwe_keyswitch_key: &FourierGlweKeyswitchKey64<KSKeyCont>,
+pub fn keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCont>(
+    glwe_keyswitch_key: &FourierGlweKeyswitchKey<KSKeyCont>,
     input: &GlweCiphertext<InputCont>,
     output: &mut GlweCiphertext<OutputCont>,
 ) where
     Scalar: UnsignedTorus,
-    KSKeyCont: Container<Element=c64>,
+    KSKeyCont: ContainerMut<Element=c64>,
     InputCont: Container<Element=Scalar>,
     OutputCont: ContainerMut<Element=Scalar>,
 {
-    assert!(Scalar::BITS <= 64);
     assert_eq!(
         glwe_keyswitch_key.input_glwe_size(),
         input.glwe_size(),
@@ -283,44 +232,95 @@ pub fn keyswitch_glwe_ciphertext_64<Scalar, KSKeyCont, InputCont, OutputCont>(
 
     let polynomial_size = glwe_keyswitch_key.polynomial_size();
     let output_glwe_size = glwe_keyswitch_key.output_glwe_size();
+    let decomp_base_log = glwe_keyswitch_key.decomp_base_log();
+    let decomp_level = glwe_keyswitch_key.decomp_level_count();
     let ciphertext_modulus = input.ciphertext_modulus();
+
+    let fft = Fft::new(polynomial_size);
+    let fft = fft.as_view();
+
+    let mut buffers = ComputationBuffers::new();
+    buffers.resize(
+        fft.backward_scratch()
+        .unwrap()
+        .unaligned_bytes_required(),
+    );
+    let mut stack = buffers.stack();
 
     output.as_mut().fill(Scalar::ZERO);
     output.get_mut_body().as_mut().clone_from_slice(input.get_body().as_ref());
 
-    let fourier_upper = glwe_keyswitch_key.fourier_upper();
-    let fourier_lower = glwe_keyswitch_key.fourier_lower();
+    let decomposer = SignedDecomposer::new(decomp_base_log, decomp_level);
+    let fft_type = glwe_keyswitch_key.fft_type();
+    let num_split = fft_type.num_split();
+    let split_base_log = fft_type.split_base_log();
 
-    for (glev_idx, input_mask_poly) in input.get_mask().as_polynomial_list().iter().enumerate() {
-        let (glev_upper, _) = fourier_upper.split_at((glev_idx+1) * output_glwe_size.0);
-        let (_, glev_upper) = glev_upper.split_at(glev_idx * output_glwe_size.0);
+    let mut buffer_fourier_glwe_list = FourierGlweCiphertextList::new(output_glwe_size, polynomial_size, FourierGlweCiphertextCount(num_split));
 
-        let (glev_lower, _) = fourier_lower.split_at((glev_idx+1) * output_glwe_size.0);
-        let (_, glev_lower) = glev_lower.split_at(glev_idx * output_glwe_size.0);
-
-        let wrapper_input_poly = GlweCiphertext::from_container(
-            input_mask_poly.as_ref(),
+    let input_mask = input.get_mask();
+    for (input_mask_poly, fourier_glev_split_list) in input_mask.as_polynomial_list().iter()
+        .zip(glwe_keyswitch_key.as_fourier_glev_ciphertext_list().chunks_exact(num_split))
+    {
+        let mut input_decomp_poly_list = PolynomialList::new(
+            Scalar::ZERO,
             polynomial_size,
-            ciphertext_modulus,
+            PolynomialCount(decomp_level.0),
         );
 
-        let mut buf = GlweCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, ciphertext_modulus);
+        for (i, val) in input_mask_poly.iter().enumerate() {
+            let decomposition_iter = decomposer.decompose(*val);
 
-        for ((wrapper_ggsw_upper, wrapper_ggsw_lower), mut buf_poly)
-        in glev_upper.as_view().into_ggsw_iter()
-            .zip(glev_lower.as_view().into_ggsw_iter())
-            .zip(buf.as_mut_polynomial_list().iter_mut())
-        {
-            let mut tmp_poly = GlweCiphertext::new(Scalar::ZERO, GlweSize(1), polynomial_size, ciphertext_modulus);
-
-            add_external_product_assign(&mut tmp_poly, &wrapper_ggsw_upper, &wrapper_input_poly);
-            glwe_ciphertext_cleartext_mul_assign(&mut tmp_poly, Cleartext(Scalar::ONE << 32));
-            add_external_product_assign(&mut tmp_poly, &wrapper_ggsw_lower, &wrapper_input_poly);
-
-            let tmp_poly = Polynomial::from_container(tmp_poly.as_ref());
-            polynomial_wrapping_add_assign(&mut buf_poly, &tmp_poly);
+            for (j, decomp_val) in decomposition_iter.into_iter().enumerate() {
+                *input_decomp_poly_list.get_mut(j).as_mut().get_mut(i).unwrap() = decomp_val.value();
+            }
         }
 
-        glwe_ciphertext_add_assign(output, &buf);
+        let mut fourier_input_decomp_poly_list = FourierPolynomialList {
+            data: avec![
+                c64::default();
+                polynomial_size.to_fourier_polynomial_size().0
+                    * decomp_level.0
+            ].into_boxed_slice(),
+            polynomial_size: polynomial_size,
+        };
+
+        for (decomp_poly, mut fourier_decomp_poly) in input_decomp_poly_list.iter()
+            .zip(fourier_input_decomp_poly_list.iter_mut())
+        {
+            fft.forward_as_integer(
+                fourier_decomp_poly.as_mut_view(),
+                decomp_poly.as_view(),
+                stack.rb_mut(),
+            );
+        }
+
+        for (mut buffer_fourier_glwe, fourier_glev_split) in buffer_fourier_glwe_list.iter_mut()
+            .zip(fourier_glev_split_list.iter())
+        {
+            for (fourier_decomp_poly, fourier_glwe) in fourier_input_decomp_poly_list.iter_mut()
+                .zip(fourier_glev_split.as_fourier_glwe_ciphertext_list().iter().rev())
+            {
+                for (mut buffer_poly, fourier_poly) in buffer_fourier_glwe.as_mut_fourier_polynomial_list().iter_mut()
+                    .zip(fourier_glwe.as_fourier_polynomial_list().iter())
+                {
+                    fourier_poly_mult_and_add(&mut buffer_poly, &fourier_decomp_poly, &fourier_poly);
+                }
+            }
+        }
+    }
+
+    let mut buffer_glwe_list = GlweCiphertextList::new(Scalar::ZERO, output_glwe_size, polynomial_size, GlweCiphertextCount(num_split), ciphertext_modulus);
+    for (k, (mut buffer_glwe, buffer_fourier_glwe)) in buffer_glwe_list.iter_mut()
+        .zip(buffer_fourier_glwe_list.iter())
+        .enumerate()
+    {
+        for (mut buffer_poly, buffer_fourier_poly) in buffer_glwe.as_mut_polynomial_list().iter_mut()
+            .zip(buffer_fourier_glwe.as_fourier_polynomial_list().iter())
+        {
+            fft.backward_as_torus(buffer_poly.as_mut_view(), buffer_fourier_poly.as_view(), stack.rb_mut());
+        }
+
+        glwe_ciphertext_cleartext_mul_assign(&mut buffer_glwe, Cleartext(Scalar::ONE << (k * split_base_log)));
+        glwe_ciphertext_add_assign(output, &buffer_glwe);
     }
 }

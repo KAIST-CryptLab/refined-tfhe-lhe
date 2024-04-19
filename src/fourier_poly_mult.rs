@@ -88,6 +88,34 @@ pub fn fourier_poly_mult<LhsCont, RhsCont, OutputCont>(
     );
 }
 
+pub fn fourier_poly_mult_and_add<LhsCont, RhsCont, OutputCont>(
+    output: &mut FourierPolynomial<OutputCont>,
+    lhs_int: &FourierPolynomial<LhsCont>,
+    rhs_torus: &FourierPolynomial<RhsCont>,
+) where
+    LhsCont: Container<Element=c64>,
+    RhsCont: Container<Element=c64>,
+    OutputCont: ContainerMut<Element=c64>,
+{
+    assert_eq!(lhs_int.polynomial_size(), rhs_torus.polynomial_size());
+    assert_eq!(lhs_int.polynomial_size(), output.polynomial_size());
+
+    let lhs_int = lhs_int.as_view();
+    let rhs_torus = rhs_torus.as_view();
+    let output = output.as_mut_view();
+
+    let polynomial_size = lhs_int.polynomial_size();
+    let fourier_poly_size = polynomial_size.to_fourier_polynomial_size().0;
+
+    update_with_fmadd(
+        &mut *output.data,
+        lhs_int.data,
+        rhs_torus.data,
+        false,
+        fourier_poly_size,
+    );
+}
+
 pub fn polynomial_mul_by_fft<Scalar, LhsCont, RhsCont, OutputCont>(
     output: &mut Polynomial<OutputCont>,
     lhs_int: &Polynomial<LhsCont>,
