@@ -1,10 +1,10 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use hom_trace::{convert_lwe_to_glwe_const, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, trace_with_mod_switch_assign};
 use tfhe::core_crypto::prelude::*;
+use hom_trace::{convert_lwe_to_glwe_const, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, keygen_pbs, lwe_msb_bit_to_lev, lwe_preprocessing, switch_scheme, trace_assign, FftType};
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(10);
+    config = Criterion::default().sample_size(1000);
     targets =
         criterion_benchmark_cbs,
         criterion_benchmark_faster_and_smaller_cbs,
@@ -43,6 +43,7 @@ struct FasterAndSmallerCBSParam<Scalar: UnsignedInteger> {
     ks_level: DecompositionLevelCount,
     auto_base_log: DecompositionBaseLog,
     auto_level: DecompositionLevelCount,
+    fft_type: FftType,
     ss_base_log: DecompositionBaseLog,
     ss_level: DecompositionLevelCount,
     cbs_base_log: DecompositionBaseLog,
@@ -69,7 +70,7 @@ fn criterion_benchmark_cbs(c: &mut Criterion) {
         pfks_base_log: DecompositionBaseLog(15),
         cbs_level: DecompositionLevelCount(3),
         cbs_base_log: DecompositionBaseLog(5),
-        log_pbs_many: 2,
+        log_pbs_many: 0,
         ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
     };
 
@@ -87,7 +88,7 @@ fn criterion_benchmark_cbs(c: &mut Criterion) {
         pfks_base_log: DecompositionBaseLog(9),
         cbs_level: DecompositionLevelCount(3),
         cbs_base_log: DecompositionBaseLog(6),
-        log_pbs_many: 2,
+        log_pbs_many: 0,
         ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
     };
 
@@ -105,7 +106,7 @@ fn criterion_benchmark_cbs(c: &mut Criterion) {
         pfks_base_log: DecompositionBaseLog(9),
         cbs_level: DecompositionLevelCount(6),
         cbs_base_log: DecompositionBaseLog(4),
-        log_pbs_many: 3,
+        log_pbs_many: 0,
         ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
     };
 
@@ -277,6 +278,7 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         ks_base_log: DecompositionBaseLog(6),
         auto_base_log: DecompositionBaseLog(7),
         auto_level: DecompositionLevelCount(6),
+        fft_type: FftType::Split32,
         ss_base_log: DecompositionBaseLog(10),
         ss_level: DecompositionLevelCount(4),
         cbs_level: DecompositionLevelCount(3),
@@ -297,6 +299,7 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         ks_base_log: DecompositionBaseLog(10),
         auto_base_log: DecompositionBaseLog(5),
         auto_level: DecompositionLevelCount(11),
+        fft_type: FftType::Split32,
         ss_base_log: DecompositionBaseLog(10),
         ss_level: DecompositionLevelCount(4),
         cbs_level: DecompositionLevelCount(3),
@@ -317,6 +320,7 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         ks_base_log: DecompositionBaseLog(11),
         auto_base_log: DecompositionBaseLog(5),
         auto_level: DecompositionLevelCount(11),
+        fft_type: FftType::Split32,
         ss_base_log: DecompositionBaseLog(10),
         ss_level: DecompositionLevelCount(4),
         cbs_level: DecompositionLevelCount(6),
@@ -343,6 +347,7 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         let ks_level = param.ks_level;
         let auto_base_log = param.auto_base_log;
         let auto_level = param.auto_level;
+        let fft_type = param.fft_type;
         let ss_base_log = param.ss_base_log;
         let ss_level = param.ss_level;
         let cbs_base_log = param.cbs_base_log;
@@ -394,6 +399,7 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         let auto_keys = gen_all_auto_keys(
             auto_base_log,
             auto_level,
+            fft_type,
             &glwe_sk,
             glwe_modular_std_dev,
             &mut encryption_generator,
@@ -423,6 +429,8 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
         let mut glev = GlweCiphertextList::new(0u64, glwe_size, polynomial_size, GlweCiphertextCount(cbs_level.0), ciphertext_modulus);
         let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, cbs_base_log, cbs_level, ciphertext_modulus);
         let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, cbs_base_log, cbs_level);
+
+        let mut buf = LweCiphertext::new(0u64, lwe.lwe_size(), ciphertext_modulus);
 
         // Bench
         group.bench_function(
@@ -454,8 +462,9 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
             ),
             |b| b.iter(|| {
                 for (lwe, mut glwe) in lev.iter().zip(glev.iter_mut()) {
-                    convert_lwe_to_glwe_const(&lwe, &mut glwe);
-                    trace_with_mod_switch_assign(&mut glwe, &auto_keys);
+                    lwe_preprocessing(&lwe, &mut buf, polynomial_size);
+                    convert_lwe_to_glwe_const(&buf, &mut glwe);
+                    trace_assign(&mut glwe, &auto_keys);
                 }
                 switch_scheme(&glev, &mut ggsw, ss_key);
                 convert_standard_ggsw_ciphertext_to_fourier(&ggsw, &mut fourier_ggsw);
@@ -470,10 +479,10 @@ fn criterion_benchmark_faster_and_smaller_cbs(c: &mut Criterion) {
 
         println!(
             "n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_cbs: {}, B_cbs: 2^{}
-l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}, log_pbs_many: {},
+l_auto: {}, B_auto: 2^{}, fft_type: {:?}, l_ss: {}, B_ss: 2^{}, log_pbs_many: {},
 err: {:.2} bits",
             lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_level.0, pbs_base_log.0, cbs_level.0, cbs_base_log.0,
-            auto_level.0, auto_base_log.0, ss_level.0, ss_base_log.0, log_pbs_many,
+            auto_level.0, auto_base_log.0, fft_type, ss_level.0, ss_base_log.0, log_pbs_many,
             (max_err as f64).log2(),
         );
     }
