@@ -50,6 +50,10 @@ name = "ggsw_lut"
 harness = false
 
 [[test]]
+name = "scheme_switching"
+harness = false
+
+[[test]]
 name = "aes_ref"
 harness = false
 
