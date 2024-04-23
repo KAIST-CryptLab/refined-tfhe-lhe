@@ -1,7 +1,7 @@
 use std::time::Instant;
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{automorphism::*, convert_lwes_to_glwe_by_trace_with_preprocessing, FftType};
+use hom_trace::{automorphism::*, convert_lwes_to_glwe_by_trace_with_preprocessing, get_glwe_l2_err, get_glwe_max_err, FftType};
 
 type Scalar = u64;
 
@@ -69,6 +69,11 @@ fn test_lwes_to_glwe(
     let mut input_lwes = LweCiphertextList::new(Scalar::ZERO, lwe_size, LweCiphertextCount(lwe_count), ciphertext_modulus);
     encrypt_lwe_ciphertext_list(&lwe_sk, &mut input_lwes, &pt, glwe_modular_std_dev, &mut encryption_generator);
 
+    let box_size = polynomial_size.0 / lwe_count;
+    let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+        if i % box_size == 0 {*pt.get(i / box_size).0} else {Scalar::ZERO}
+    }).collect::<Vec<Scalar>>());
+
     // LWEs to GLWE
     let mut output = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
 
@@ -81,21 +86,8 @@ fn test_lwes_to_glwe(
     convert_lwes_to_glwe_by_trace_with_preprocessing(&input_lwes, &mut output, &auto_keys);
     let time = now.elapsed();
 
-    let mut dec = PlaintextList::new(Scalar::ZERO, PlaintextCount(polynomial_size.0));
-    decrypt_glwe_ciphertext(&glwe_sk, &output, &mut dec);
+    let max_err = get_glwe_max_err(&glwe_sk, &output, &correct_val_list);
+    let l2_err = get_glwe_l2_err(&glwe_sk, &output, &correct_val_list);
 
-    let mut max_err = Scalar::ZERO;
-    let box_size = polynomial_size.0 / lwe_count;
-    for (i, val) in dec.iter().enumerate() {
-        let val = *val.0;
-        let correct_val = if i % box_size == 0 {*pt.get(i / box_size).0} else {Scalar::ZERO};
-        let abs_err = {
-            let d0 = val.wrapping_sub(correct_val);
-            let d1 = correct_val.wrapping_sub(val);
-            std::cmp::min(d0, d1)
-        };
-        max_err = std::cmp::max(max_err, abs_err);
-    }
-
-    println!("{} ms, err: {:.2}", time.as_micros() as f64 / 1000f64, (max_err as f64).log2());
+    println!("{} ms, err: (Max) {:.2} bit (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2(), l2_err.log2());
 }

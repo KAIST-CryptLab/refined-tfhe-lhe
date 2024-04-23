@@ -2,22 +2,18 @@ use std::time::{Duration, Instant};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 use hom_trace::{
-    utils::get_glwe_max_err,
-    mod_switch::lwe_preprocessing_assign,
-    glwe_conv::convert_lwe_to_glwe_const,
-    automorphism::{gen_all_auto_keys, trace_assign},
-    fourier_glwe_keyswitch::FftType,
+    automorphism::{gen_all_auto_keys, trace_assign}, fourier_glwe_keyswitch::FftType, get_glwe_l2_err, glwe_conv::convert_lwe_to_glwe_const, mod_switch::lwe_preprocessing_assign, utils::get_glwe_max_err
 };
 
 type Scalar = u64;
 
 fn main() {
-    let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
+    let polynomial_size = PolynomialSize(2048);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(12);
-    let auto_level = DecompositionLevelCount(3);
-    let fft_type = FftType::Vanilla;
+    let auto_base_log = DecompositionBaseLog(5);
+    let auto_level = DecompositionLevelCount(11);
+    let fft_type = FftType::Split16;
 
     test_lwe_to_glwe(
         polynomial_size,
@@ -81,6 +77,10 @@ fn test_lwe_to_glwe(
         &mut encryption_generator,
     );
 
+    let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+        if i == 0 {msg << log_scale} else {Scalar::ZERO}
+    }).collect::<Vec<Scalar>>());
+
     let mut time = Duration::ZERO;
 
     // Pre-processing
@@ -108,11 +108,13 @@ fn test_lwe_to_glwe(
     let max_err = get_glwe_max_err(
         &glwe_sk,
         &output,
-        // correct_val_list,
-        &PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-            if i == 0 {msg << log_scale} else {Scalar::ZERO}
-        }).collect::<Vec<Scalar>>()),
+        &correct_val_list,
+    );
+    let l2_err = get_glwe_l2_err(
+        &glwe_sk,
+        &output,
+        &correct_val_list
     );
 
-    println!("{} ms, err: {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2());
+    println!("{} ms, err: (Max) {:.2} bits (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2(), l2_err.log2());
 }

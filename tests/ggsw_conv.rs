@@ -317,16 +317,22 @@ l_auto: {}, B_auto: 2^{}, fft type: {:?}, l_ss: {}, B_ss: 2^{}\n",
         let level = k + 1;
         let log_scale = u64::BITS as usize -  ggsw_base_log.0 * level;
         print!("  Level {level}: ");
-        let mut max_err = 0;
-        for i in 0..polynomial_size.0 {
-            let mut lwe: LweCiphertext<Vec<u64>> = LweCiphertext::new(0u64, big_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
-            extract_lwe_sample_from_glwe_ciphertext(&glwe, &mut lwe, MonomialDegree(i));
 
-            let correct_val = if i == 0 {msg} else {0};
-            let (_decoded, abs_err) = get_val_and_abs_err(&big_lwe_sk, &lwe, correct_val, 1 << log_scale);
-            max_err = std::cmp::max(max_err, abs_err);
-        }
-        println!("{:.2} bits", (max_err as f64).log2());
+        let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+            (if i == 0 {msg} else {0}) << log_scale
+        }).collect::<Vec<u64>>());
+
+        let max_err = get_glwe_max_err(
+            &glwe_sk,
+            &glwe,
+            &correct_val_list,
+        );
+        let l2_err = get_glwe_l2_err(
+            &glwe_sk,
+            &glwe,
+            &correct_val_list,
+        );
+        println!("(Max) {:.2} bits (Avg) {:.2} bits", (max_err as f64).log2(), l2_err.log2());
     }
 
     // Scheme Switching

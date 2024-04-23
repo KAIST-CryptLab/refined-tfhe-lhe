@@ -1,4 +1,4 @@
-use hom_trace::{convert_lwes_to_glwe_by_trace_with_preprocessing, gen_all_auto_keys, get_glwe_max_err, FftType};
+use hom_trace::{convert_lwes_to_glwe_by_trace_with_preprocessing, gen_all_auto_keys, get_glwe_l2_err, get_glwe_max_err, FftType};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 
@@ -192,7 +192,8 @@ fn sample_lwes_to_glwe_by_trace_with_preprocessing(
 
     let mut rng = rand::thread_rng();
 
-    let mut err_list: Vec<Scalar> = vec![];
+    let mut l_infty_err_list = vec![];
+    let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
@@ -210,33 +211,51 @@ fn sample_lwes_to_glwe_by_trace_with_preprocessing(
             &auto_keys,
         );
 
+        let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+            let box_size = polynomial_size.0 / LWE_COUNT;
+            if i % box_size == 0 {
+                let idx = i / box_size;
+                *pt.get(idx).0
+            } else {
+                Scalar::ZERO
+            }
+        }).collect::<Vec<Scalar>>());
+
         let max_err = get_glwe_max_err(
             &glwe_sk,
             &output,
-            &PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                let box_size = polynomial_size.0 / LWE_COUNT;
-                if i % box_size == 0 {
-                    let idx = i / box_size;
-                    *pt.get(idx).0
-                } else {
-                    Scalar::ZERO
-                }
-            }).collect::<Vec<Scalar>>())
+            &correct_val_list
+        );
+        let l2_err = get_glwe_l2_err(
+            &glwe_sk,
+            &output,
+            &correct_val_list,
         );
 
-        err_list.push(max_err);
+        l_infty_err_list.push(max_err);
+        l2_err_list.push(l2_err);
     }
 
+    println!("LWEtoGLWE err");
     let mut avg_err = Scalar::ZERO;
     let mut max_err = Scalar::ZERO;
-    for err in err_list.iter() {
+    for err in l_infty_err_list.iter() {
         avg_err += err;
         max_err = std::cmp::max(max_err, *err);
     }
     let avg_err = (avg_err as f64) / num_repeat as f64;
     let max_err = max_err as f64;
+    println!("- infinity norm: (Avg) {:.2} bits (Max) {:.2} bits", avg_err.log2(), max_err.log2());
 
-    println!("LWEtoGLWE err: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
+    let mut avg_err = 0f64;
+    let mut max_err = 0f64;
+    for err in l2_err_list.iter() {
+        avg_err += err;
+        max_err = if max_err < *err {*err} else {max_err};
+    }
+    let avg_err = (avg_err as f64) / num_repeat as f64;
+    let max_err = max_err as f64;
+    println!("-       l2 norm: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
 }
 
 #[allow(unused)]
@@ -282,7 +301,8 @@ fn sample_lwes_to_glwe_by_large_pksk(
 
     let mut rng = rand::thread_rng();
 
-    let mut err_list: Vec<Scalar> = vec![];
+    let mut l_infty_err_list = vec![];
+    let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
@@ -300,31 +320,50 @@ fn sample_lwes_to_glwe_by_large_pksk(
             &mut output,
         );
 
+        let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+            if i < LWE_COUNT {
+                *pt.get(i).0
+            } else {
+                Scalar::ZERO
+            }
+        }).collect::<Vec<Scalar>>());
+
         let max_err = get_glwe_max_err(
             &glwe_sk,
             &output,
-            &PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                if i < LWE_COUNT {
-                    *pt.get(i).0
-                } else {
-                    Scalar::ZERO
-                }
-            }).collect::<Vec<Scalar>>())
+            &correct_val_list,
+        );
+        let l2_err = get_glwe_l2_err(
+            &glwe_sk,
+            &output,
+            &correct_val_list,
         );
 
-        err_list.push(max_err);
+        l_infty_err_list.push(max_err);
+        l2_err_list.push(l2_err);
     }
 
+    println!("LWEtoGLWE err");
     let mut avg_err = Scalar::ZERO;
     let mut max_err = Scalar::ZERO;
-    for err in err_list.iter() {
+    for err in l_infty_err_list.iter() {
         avg_err += err;
         max_err = std::cmp::max(max_err, *err);
     }
     let avg_err = (avg_err as f64) / num_repeat as f64;
     let max_err = max_err as f64;
+    println!("- infinity norm: (Avg) {:.2} bits (Max) {:.2} bits", avg_err.log2(), max_err.log2());
 
-    println!("LWEtoGLWE err: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
+    let mut avg_err = 0f64;
+    let mut max_err = 0f64;
+    for err in l2_err_list.iter() {
+        avg_err += err;
+        max_err = if max_err < *err {*err} else {max_err};
+    }
+    let avg_err = (avg_err as f64) / num_repeat as f64;
+    let max_err = max_err as f64;
+
+    println!("-       l2 norm: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
 }
 
 #[allow(unused)]
@@ -386,7 +425,8 @@ fn sample_lwes_to_glwe_by_small_pksk(
 
     let mut rng = rand::thread_rng();
 
-    let mut err_list: Vec<Scalar> = vec![];
+    let mut l_infty_err_list = vec![];
+    let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
@@ -413,29 +453,47 @@ fn sample_lwes_to_glwe_by_small_pksk(
             &mut output,
         );
 
+        let correct_val_list = PlaintextList::from_container((0..polynomial_size.0).map(|i| {
+            if i < LWE_COUNT {
+                *pt.get(i).0
+            } else {
+                Scalar::ZERO
+            }
+        }).collect::<Vec<Scalar>>());
+
         let max_err = get_glwe_max_err(
             &glwe_sk,
             &output,
-            &PlaintextList::from_container((0..polynomial_size.0).map(|i| {
-                if i < LWE_COUNT {
-                    *pt.get(i).0
-                } else {
-                    Scalar::ZERO
-                }
-            }).collect::<Vec<Scalar>>())
+            &correct_val_list,
+        );
+        let l2_err = get_glwe_l2_err(
+            &glwe_sk,
+            &output,
+            &correct_val_list,
         );
 
-        err_list.push(max_err);
+        l_infty_err_list.push(max_err);
+        l2_err_list.push(l2_err);
     }
 
+    println!("LWEtoGLWE err");
     let mut avg_err = Scalar::ZERO;
     let mut max_err = Scalar::ZERO;
-    for err in err_list.iter() {
+    for err in l_infty_err_list.iter() {
         avg_err += err;
         max_err = std::cmp::max(max_err, *err);
     }
     let avg_err = (avg_err as f64) / num_repeat as f64;
     let max_err = max_err as f64;
+    println!("- infinity norm: (Avg) {:.2} bits (Max) {:.2} bits", avg_err.log2(), max_err.log2());
 
-    println!("LWEtoGLWE err: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
+    let mut avg_err = 0f64;
+    let mut max_err = 0f64;
+    for err in l2_err_list.iter() {
+        avg_err += err;
+        max_err = if max_err < *err {*err} else {max_err};
+    }
+    let avg_err = (avg_err as f64) / num_repeat as f64;
+    let max_err = max_err as f64;
+    println!("-       l2 norm: (Avg) {:.2} bits (Max) {:.2} bits\n", avg_err.log2(), max_err.log2());
 }

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{glwe_keyswitch::*, fourier_glwe_keyswitch::*, utils::get_glwe_max_err};
+use hom_trace::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
 
 type Scalar = u64;
 
@@ -13,11 +13,11 @@ fn main() {
     let large_glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
 
-    let decomp_level_count_to_small = DecompositionLevelCount(6);
-    let decomp_base_log_to_small = DecompositionBaseLog(8);
+    let decomp_level_count_to_small = DecompositionLevelCount(7);
+    let decomp_base_log_to_small = DecompositionBaseLog(7);
 
-    let decomp_level_count_to_large = DecompositionLevelCount(4);
-    let decomp_base_log_to_large = DecompositionBaseLog(10);
+    let decomp_level_count_to_large = DecompositionLevelCount(3);
+    let decomp_base_log_to_large = DecompositionBaseLog(15);
 
     test_glwe_keyswitch(
         polynomial_size,
@@ -101,7 +101,7 @@ fn test_glwe_keyswitch(
         polynomial_size,
         decomp_base_log_to_small,
         decomp_level_count_to_small,
-        FftType::Split32,
+        FftType::Split16,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
@@ -134,10 +134,12 @@ fn test_glwe_keyswitch(
     let time_to_small = now.elapsed();
 
     let max_err = get_glwe_max_err(&glwe_sk, &output, &pt);
+    let l2_err = get_glwe_l2_err(&glwe_sk, &output, &pt);
     println!(
-        "[Standard] GLWE KS large -> small: {} ms, {:.2} bits",
+        "[Standard] GLWE KS large -> small: {} ms, (Max) {:.2} bits (l2) {:.2} bits",
         time_to_small.as_millis() as f64 / num_repeat as f64,
         (max_err as f64).log2(),
+        l2_err.log2(),
     );
 
     let now = Instant::now();
@@ -151,10 +153,12 @@ fn test_glwe_keyswitch(
     let time_to_small_fourier = now.elapsed();
 
     let max_err = get_glwe_max_err(&glwe_sk, &output, &pt);
+    let l2_err = get_glwe_l2_err(&glwe_sk, &output, &pt);
     println!(
-        "[Fourier]  GLWE KS large -> small: {} ms, {:.2} bits",
+        "[Fourier]  GLWE KS large -> small: {} ms, (Max) {:.2} bits (l2) {:.2} bits",
         time_to_small_fourier.as_millis() as f64 / num_repeat as f64,
         (max_err as f64).log2(),
+        l2_err.log2(),
     );
     println!();
 
@@ -178,7 +182,7 @@ fn test_glwe_keyswitch(
         polynomial_size,
         decomp_base_log_to_large,
         decomp_level_count_to_large,
-        FftType::Split32,
+        FftType::Split16,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
@@ -195,10 +199,12 @@ fn test_glwe_keyswitch(
     let time_to_large = now.elapsed();
 
     let max_err = get_glwe_max_err(&large_glwe_sk, &output, &pt);
+    let l2_err = get_glwe_l2_err(&large_glwe_sk, &output, &pt);
     println!(
-        "[Standrad] GLWE KS small -> large: {} ms, {:.2} bits",
+        "[Standard] GLWE KS small -> large: {} ms, (Max) {:.2} bits (l2) {:.2} bits",
         time_to_large.as_millis() as f64 / num_repeat as f64,
         (max_err as f64).log2(),
+        l2_err.log2(),
     );
 
     let now = Instant::now();
@@ -212,9 +218,11 @@ fn test_glwe_keyswitch(
     let time_to_large_fourier = now.elapsed();
 
     let max_err = get_glwe_max_err(&large_glwe_sk, &output, &pt);
+    let l2_err = get_glwe_l2_err(&large_glwe_sk, &output, &pt);
     println!(
-        "[Fourier]  GLWE KS small -> large: {} ms, {:.2} bits",
+        "[Fourier]  GLWE KS small -> large: {} ms, (Max) {:.2} bits (l2) {:.2} bits",
         time_to_large_fourier.as_millis() as f64 / num_repeat as f64,
         (max_err as f64).log2(),
+        l2_err.log2(),
     );
 }
