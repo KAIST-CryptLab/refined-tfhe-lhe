@@ -75,7 +75,7 @@ pub fn convert_lwe_to_glwe_by_trace_with_preprocessing<Scalar, InputCont, Output
     lwe_preprocessing(input, &mut buf, polynomial_size);
 
     // LWEtoGLWEConst
-    convert_lwe_to_glwe_const(input, output);
+    convert_lwe_to_glwe_const(&buf, output);
 
     // Clear coefficients except the constant
     trace_assign(output, auto_keys);
