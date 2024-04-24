@@ -6,9 +6,7 @@ use tfhe::core_crypto::{
     algorithms::slice_algorithms::slice_wrapping_opposite_assign,
 };
 use crate::{
-    utils::*,
-    automorphism::*,
-    mod_switch::*,
+    automorphism::*, keyswitch_glwe_ciphertext, mod_switch::*, utils::*, FourierGlweKeyswitchKey
 };
 
 pub fn convert_lwe_to_glwe_const<Scalar, InputCont, OutputCont>(
@@ -79,6 +77,54 @@ pub fn convert_lwe_to_glwe_by_trace_with_preprocessing<Scalar, InputCont, Output
 
     // Clear coefficients except the constant
     trace_assign(output, auto_keys);
+}
+
+
+pub fn convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut GlweCiphertext<OutputCont>,
+    glwe_ksk_to_large: &FourierGlweKeyswitchKey<ABox<[c64]>>,
+    glwe_ksk_from_large: &FourierGlweKeyswitchKey<ABox<[c64]>>,
+    auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>
+) where
+    Scalar: UnsignedTorus,
+    InputCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    assert!(
+        input.ciphertext_modulus().is_native_modulus(),
+        "only native ciphertext modulus is supported"
+    );
+    assert_eq!(glwe_ksk_to_large.input_glwe_size(), glwe_ksk_from_large.output_glwe_size());
+    assert_eq!(glwe_ksk_to_large.output_glwe_size(), glwe_ksk_from_large.input_glwe_size());
+
+    let lwe_size = input.lwe_size();
+    let lwe_dimension = lwe_size.to_lwe_dimension();
+    let glwe_size = output.glwe_size();
+    let glwe_dimension = glwe_size.to_glwe_dimension();
+    let large_glwe_size = glwe_ksk_to_large.output_glwe_size();
+    let polynomial_size = output.polynomial_size();
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    assert_eq!(lwe_dimension.0, glwe_dimension.0 * polynomial_size.0);
+
+    // LWEtoGLWEConst
+    let mut buf = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    convert_lwe_to_glwe_const(&input, &mut buf);
+
+    // GLWE KS to Large
+    let mut buf_large = GlweCiphertext::new(Scalar::ZERO, large_glwe_size, polynomial_size, ciphertext_modulus);
+    keyswitch_glwe_ciphertext(glwe_ksk_to_large, &buf, &mut buf_large);
+
+    // Pre-processing
+    glwe_preprocessing_assign(&mut buf_large);
+
+    // Clear coefficients except the constant
+    trace_assign(&mut buf_large, auto_keys);
+
+    // GLWE KS from Large
+    keyswitch_glwe_ciphertext(glwe_ksk_from_large, &buf_large, output);
 }
 
 
