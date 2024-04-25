@@ -16,26 +16,12 @@ fn main() {
     // -------- param_message_2_carry_2 -------- //
     let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
-    let decomp_base_log = DecompositionBaseLog(10);
-    let decomp_level = DecompositionLevelCount(4);
-
-    sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
-
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
     let decomp_base_log = DecompositionBaseLog(13);
     let decomp_level = DecompositionLevelCount(3);
 
     sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
 
     // -------- param_message_3_carry_3 -------- //
-    let polynomial_size = PolynomialSize(8192);
-    let glwe_dimension = GlweDimension(1);
-    let decomp_base_log = DecompositionBaseLog(20);
-    let decomp_level = DecompositionLevelCount(2);
-
-    sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
-
     let polynomial_size = PolynomialSize(8192);
     let glwe_dimension = GlweDimension(1);
     let decomp_base_log = DecompositionBaseLog(15);
@@ -65,18 +51,32 @@ fn main() {
 
     sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
 
-    // -------- wopbs_message_2_carry_2 -------- //
+    // -------- wopbs -------- //
     let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
     let decomp_base_log = DecompositionBaseLog(7);
-    let decomp_level = DecompositionLevelCount(6);
+    let decomp_level = DecompositionLevelCount(7);
+
+    sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
+
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
+    let decomp_base_log = DecompositionBaseLog(6);
+    let decomp_level = DecompositionLevelCount(10);
+
+    sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
+
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
+    let decomp_base_log = DecompositionBaseLog(15);
+    let decomp_level = DecompositionLevelCount(3);
 
     sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
 
     let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
     let decomp_base_log = DecompositionBaseLog(5);
-    let decomp_level = DecompositionLevelCount(11);
+    let decomp_level = DecompositionLevelCount(10);
 
     sample_fourier_err(polynomial_size, glwe_dimension, decomp_base_log, decomp_level,FFT_BASE_LOG, NUM_REPEAT);
 
