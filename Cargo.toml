@@ -93,6 +93,10 @@ harness = false
 name = "sample_ggsw_conv_err"
 harness = false
 
+[[test]]
+name = "sample_cbs_err"
+harness = false
+
 [[bench]]
 name = "bench_lwe_to_glwe"
 harness = false
