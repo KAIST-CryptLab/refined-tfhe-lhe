@@ -97,6 +97,10 @@ harness = false
 name = "sample_cbs_err"
 harness = false
 
+[[test]]
+name = "sample_aes_eval_err"
+harness = false
+
 [[bench]]
 name = "bench_lwe_to_glwe"
 harness = false
@@ -107,6 +111,10 @@ harness = false
 
 [[bench]]
 name = "bench_cbs"
+harness = false
+
+[[bench]]
+name = "bench_aes"
 harness = false
 
 [features]
