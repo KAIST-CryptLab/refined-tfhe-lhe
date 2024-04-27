@@ -2,27 +2,30 @@ use std::time::{Duration, Instant};
 
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{keygen_pbs, aes_he::*, aes_ref::*, automorphism::*, ggsw_conv::*, FftType};
+use hom_trace::{aes_he::*, aes_ref::*, automorphism::*, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType};
 
 fn main() {
     // AES evaluation by patched WWLL+ circuit bootstrapping
-    let lwe_dimension = LweDimension(769);
-    let lwe_modular_std_dev = StandardDev(0.0000043131554647504185);
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
+    let lwe_dimension = LweDimension(768);
+    let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
+    let polynomial_size = PolynomialSize(1024);
+    let glwe_dimension = GlweDimension(2);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+
+    let common_polynomial_size = PolynomialSize(256);
+    let ds_fft_type = FftType::Split16;
+    let glwe_ds_level = DecompositionLevelCount(3);
+    let glwe_ds_base_log = DecompositionBaseLog(4);
 
     let pbs_base_log = DecompositionBaseLog(15);
     let pbs_level = DecompositionLevelCount(2);
-    let ks_level = DecompositionLevelCount(2);
-    let ks_base_log = DecompositionBaseLog(6);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
     let ggsw_base_log = DecompositionBaseLog(5);
     let ggsw_level = DecompositionLevelCount(3);
     let auto_base_log = DecompositionBaseLog(7);
     let auto_level = DecompositionLevelCount(7);
-    let fft_type = FftType::Split16;
+    let auto_fft_type = FftType::Split16;
     let ss_base_log = DecompositionBaseLog(8);
     let ss_level = DecompositionLevelCount(6);
     let log_lut_count = LutCountLog(2);
@@ -34,13 +37,15 @@ fn main() {
         lwe_modular_std_dev,
         glwe_modular_std_dev,
         pbs_base_log, pbs_level,
-        ks_base_log,
-        ks_level,
+        glwe_ds_base_log,
+        glwe_ds_level,
+        common_polynomial_size,
+        ds_fft_type,
         ss_base_log,
         ss_level,
         auto_base_log,
         auto_level,
-        fft_type,
+        auto_fft_type,
         ggsw_base_log,
         ggsw_level,
         log_lut_count,
@@ -57,13 +62,15 @@ fn test_aes_eval_by_patched_wwllp_cbs(
     glwe_modular_std_dev: impl DispersionParameter,
     pbs_base_log: DecompositionBaseLog,
     pbs_level: DecompositionLevelCount,
-    ks_base_log: DecompositionBaseLog,
-    ks_level: DecompositionLevelCount,
+    glwe_ds_base_log: DecompositionBaseLog,
+    glwe_ds_level: DecompositionLevelCount,
+    common_polynomial_size: PolynomialSize,
+    ds_fft_type: FftType,
     ss_base_log: DecompositionBaseLog,
     ss_level: DecompositionLevelCount,
     auto_base_log: DecompositionBaseLog,
     auto_level: DecompositionLevelCount,
-    fft_type: FftType,
+    auto_fft_type: FftType,
     ggsw_base_log: DecompositionBaseLog,
     ggsw_level: DecompositionLevelCount,
     log_lut_count: LutCountLog,
@@ -71,10 +78,10 @@ fn test_aes_eval_by_patched_wwllp_cbs(
 ) {
     println!(
 "==== AES evaluation by patched WWLL+ circuit bootstrapping ====
-n: {}, N: {}, k: {}, l_ks: {}, B_ks: 2^{}
+n: {}, N: {}, k: {}, l_glwe_ds: {}, B_glwe_ds: 2^{}
 l_pbs: {}, B_pbs: 2^{}, l_ggsw: {}, B_ggsw: 2^{}, LutCount: 2^{},
 l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
-        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, ks_level.0, ks_base_log.0,
+        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, glwe_ds_level.0, glwe_ds_base_log.0,
         pbs_level.0, pbs_base_log.0, ggsw_level.0, ggsw_base_log.0, log_lut_count.0,
         auto_level.0, auto_base_log.0, ss_level.0, ss_base_log.0,
     );
@@ -92,8 +99,8 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         glwe_sk,
         lwe_sk_after_ks,
         fourier_bsk,
-        ksk,
-    ) = keygen_pbs(
+        glwe_ksk,
+    ) = keygen_pbs_with_glwe_ds(
         lwe_dimension,
         glwe_dimension,
         polynomial_size,
@@ -101,8 +108,11 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        ks_base_log,
-        ks_level,
+        glwe_ds_base_log,
+        glwe_ds_level,
+        common_polynomial_size,
+        ds_fft_type,
+        ciphertext_modulus,
         &mut secret_generator,
         &mut encryption_generator,
     );
@@ -121,7 +131,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        fft_type,
+        auto_fft_type,
         &glwe_sk,
         glwe_modular_std_dev,
         &mut encryption_generator,
@@ -182,7 +192,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     );
     let mut he_state_ks = LweCiphertextList::new(
         0u64,
-        ksk.output_lwe_size(),
+        lwe_sk_after_ks.lwe_dimension().to_lwe_size(),
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
@@ -210,7 +220,11 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         // LWE KS
         let now = Instant::now();
         for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-            keyswitch_lwe_ciphertext(&ksk, &lwe, &mut lwe_ks);
+            keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                &lwe,
+                &mut lwe_ks,
+                &glwe_ksk,
+            );
         }
         time_lwe_ks += now.elapsed();
 
@@ -271,7 +285,11 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     // LWE KS
     let now = Instant::now();
     for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-        keyswitch_lwe_ciphertext(&ksk, &lwe, &mut lwe_ks);
+        keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+            &lwe,
+            &mut lwe_ks,
+            &glwe_ksk,
+        );
     }
     time_lwe_ks += now.elapsed();
 

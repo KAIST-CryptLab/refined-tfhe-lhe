@@ -1,24 +1,27 @@
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 use hom_trace::{
-    automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, get_he_state_error, he_add_round_key, he_mix_columns, he_shift_rows, he_sub_bytes_by_patched_wwllp_cbs, keygen_pbs, Aes128Ref, FftType, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
+    automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, get_he_state_error, he_add_round_key, he_mix_columns, he_shift_rows, he_sub_bytes_by_patched_wwllp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, Aes128Ref, FftType, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 
 type Scalar = u64;
-const FFT_TYPE: FftType = FftType::Split16;
-const NUM_REPEAT: usize = 1;
+const AUTO_FFT_TYPE: FftType = FftType::Split16;
+const DS_FFT_TYPE: FftType = FftType::Vanilla;
 
 fn main() {
     // Set I
-    let lwe_dimension = LweDimension(769);
+    let lwe_dimension = LweDimension(768);
+    let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
     let glwe_dimension = GlweDimension(1);
     let polynomial_size = PolynomialSize(2048);
-    let lwe_modular_std_dev = StandardDev(0.0000043131554647504185);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+
+    let common_polynomial_size = PolynomialSize(256);
+    let glwe_ds_level = DecompositionLevelCount(3);
+    let glwe_ds_base_log = DecompositionBaseLog(4);
+
     let pbs_base_log = DecompositionBaseLog(15);
     let pbs_level = DecompositionLevelCount(2);
-    let ks_base_log = DecompositionBaseLog(6);
-    let ks_level = DecompositionLevelCount(2);
     let cbs_base_log = DecompositionBaseLog(5);
     let cbs_level = DecompositionLevelCount(3);
 
@@ -28,7 +31,7 @@ fn main() {
     let ss_level = DecompositionLevelCount(6);
     let log_lut_count = LutCountLog(2);
 
-    sample_aes_eval_err(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, log_lut_count, NUM_REPEAT);
+    sample_aes_eval_err(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, glwe_ds_base_log, glwe_ds_level, common_polynomial_size, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, log_lut_count);
 }
 
 #[allow(unused)]
@@ -40,8 +43,9 @@ fn sample_aes_eval_err(
     glwe_modular_std_dev: StandardDev,
     pbs_base_log: DecompositionBaseLog,
     pbs_level: DecompositionLevelCount,
-    ks_base_log: DecompositionBaseLog,
-    ks_level: DecompositionLevelCount,
+    glwe_ds_base_log: DecompositionBaseLog,
+    glwe_ds_level: DecompositionLevelCount,
+    common_polynomial_size: PolynomialSize,
     auto_base_log: DecompositionBaseLog,
     auto_level: DecompositionLevelCount,
     ss_base_log: DecompositionBaseLog,
@@ -49,12 +53,13 @@ fn sample_aes_eval_err(
     cbs_base_log: DecompositionBaseLog,
     cbs_level: DecompositionLevelCount,
     log_lut_count: LutCountLog,
-    num_repeat: usize,
 ) {
     println!(
-        "n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_ks: 2^{}, l_ks: {}, B_cbs: 2^{}, l_cbs: {},
+        "n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_cbs: 2^{}, l_cbs: {},
+B_glwe_ds: 2^{}, l_glwe_ds: {},
 B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
-        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, ks_base_log.0, ks_level.0, cbs_base_log.0, cbs_level.0,
+        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, cbs_base_log.0, cbs_level.0,
+        glwe_ds_base_log.0, glwe_ds_level.0,
         auto_base_log.0, auto_level.0, ss_base_log.0, ss_level.0, log_lut_count.0,
     );
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
@@ -73,8 +78,8 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
         glwe_sk,
         lwe_sk_after_ks,
         fourier_bsk,
-        ksk,
-    ) = keygen_pbs(
+        fourier_ksk,
+    ) = keygen_pbs_with_glwe_ds(
         lwe_dimension,
         glwe_dimension,
         polynomial_size,
@@ -82,8 +87,11 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
         glwe_modular_std_dev,
         pbs_base_log,
         pbs_level,
-        ks_base_log,
-        ks_level,
+        glwe_ds_base_log,
+        glwe_ds_level,
+        common_polynomial_size,
+        DS_FFT_TYPE,
+        ciphertext_modulus,
         &mut secret_generator,
         &mut encryption_generator,
     );
@@ -102,7 +110,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        FFT_TYPE,
+        AUTO_FFT_TYPE,
         &glwe_sk,
         glwe_modular_std_dev,
         &mut encryption_generator,
@@ -165,7 +173,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
     );
     let mut he_state_ks = LweCiphertextList::new(
         0u64,
-        ksk.output_lwe_size(),
+        lwe_sk_after_ks.lwe_dimension().to_lwe_size(),
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
@@ -183,7 +191,11 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
     for r in 1..NUM_ROUNDS {
         // LWE KS
         for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-            keyswitch_lwe_ciphertext(&ksk, &lwe, &mut lwe_ks);
+            keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                &lwe,
+                &mut lwe_ks,
+                &fourier_ksk,
+            );
         }
 
         let (_, max_err) = get_he_state_error(&he_state_ks, state, &lwe_sk_after_ks);
@@ -226,7 +238,11 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
 
     // LWE KS
     for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-        keyswitch_lwe_ciphertext(&ksk, &lwe, &mut lwe_ks);
+        keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+            &lwe,
+            &mut lwe_ks,
+            &fourier_ksk,
+        );
     }
 
     let (_, max_err) = get_he_state_error(&he_state_ks, state, &lwe_sk_after_ks);
