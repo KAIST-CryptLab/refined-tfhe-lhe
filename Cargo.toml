@@ -101,6 +101,10 @@ harness = false
 name = "sample_aes_eval_err"
 harness = false
 
+[[test]]
+name = "lwe_ks_by_glwe_ds"
+harness = false
+
 [[bench]]
 name = "bench_lwe_to_glwe"
 harness = false

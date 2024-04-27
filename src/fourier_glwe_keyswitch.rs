@@ -6,11 +6,7 @@ use tfhe::core_crypto::{
 };
 
 use crate::{
-    glev_ciphertext::*,
-    fourier_glev_ciphertext::*,
-    fourier_glwe_ciphertext::*,
-    GlweKeyswitchKey,
-    fourier_poly_mult_and_add,
+    convert_lwe_to_glwe_const, fourier_glev_ciphertext::*, fourier_glwe_ciphertext::*, fourier_poly_mult_and_add, glev_ciphertext::*, GlweKeyswitchKey
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -205,7 +201,7 @@ pub fn keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCont>(
     output: &mut GlweCiphertext<OutputCont>,
 ) where
     Scalar: UnsignedTorus,
-    KSKeyCont: ContainerMut<Element=c64>,
+    KSKeyCont: Container<Element=c64>,
     InputCont: Container<Element=Scalar>,
     OutputCont: ContainerMut<Element=Scalar>,
 {
@@ -323,4 +319,41 @@ pub fn keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCont>(
         glwe_ciphertext_cleartext_mul_assign(&mut buffer_glwe, Cleartext(Scalar::ONE << (k * split_base_log)));
         glwe_ciphertext_add_assign(output, &buffer_glwe);
     }
+}
+
+pub fn keyswitch_lwe_ciphertext_by_glwe_keyswitch<Scalar, InputCont, OutputCont, KSKeyCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut LweCiphertext<OutputCont>,
+    glwe_keyswitch_key: &FourierGlweKeyswitchKey<KSKeyCont>
+) where
+    Scalar: UnsignedTorus,
+    InputCont: Container<Element = Scalar>,
+    OutputCont: ContainerMut<Element = Scalar>,
+    KSKeyCont: Container<Element = c64>,
+{
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    let polynomial_size = glwe_keyswitch_key.polynomial_size();
+
+    let input_lwe_dimension = input.lwe_size().to_lwe_dimension();
+    let output_lwe_dimension = output.lwe_size().to_lwe_dimension();
+
+    assert_eq!(input_lwe_dimension.0 % polynomial_size.0, 0);
+    assert_eq!(output_lwe_dimension.0 % polynomial_size.0, 0);
+
+    let input_glwe_dimension = GlweDimension(input_lwe_dimension.0 / polynomial_size.0);
+    let input_glwe_size = input_glwe_dimension.to_glwe_size();
+    let output_glwe_dimension = GlweDimension(output_lwe_dimension.0 / polynomial_size.0);
+    let output_glwe_size = output_glwe_dimension.to_glwe_size();
+
+    assert_eq!(glwe_keyswitch_key.input_glwe_size(), input_glwe_size);
+    assert_eq!(glwe_keyswitch_key.output_glwe_size(), output_glwe_size);
+
+    let mut input_buf = GlweCiphertext::new(Scalar::ZERO, input_glwe_size, polynomial_size, ciphertext_modulus);
+    let mut output_buf = GlweCiphertext::new(Scalar::ZERO, output_glwe_size, polynomial_size, ciphertext_modulus);
+
+    convert_lwe_to_glwe_const(&input, &mut input_buf);
+    keyswitch_glwe_ciphertext(glwe_keyswitch_key, &input_buf, &mut output_buf);
+    extract_lwe_sample_from_glwe_ciphertext(&output_buf, output, MonomialDegree(0));
 }
