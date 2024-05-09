@@ -1,11 +1,14 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
+use dyn_stack::ReborrowMut;
 use tfhe::core_crypto::prelude::*;
+use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::{circuit_bootstrap_boolean_scratch, circuit_bootstrap_boolean};
 use hom_trace::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, keygen_pbs, lwe_msb_bit_refresh, lwe_msb_bit_to_lev, switch_scheme, FftType, FourierGlweKeyswitchKey};
 
 criterion_group!(
     name = benches;
     config = Criterion::default().sample_size(1000);
     targets =
+        // criterion_benchmark_baseline,
         criterion_benchmark_cbs,
         criterion_benchmark_patched_wwllp_cbs,
         criterion_benchmark_patched_high_prec_wwllp_cbs,
@@ -82,6 +85,209 @@ struct HighPrecWWLLpCBSParam<Scalar: UnsignedInteger> {
     cbs_level: DecompositionLevelCount,
     log_pbs_many: usize,
     ciphertext_modulus: CiphertextModulus::<Scalar>,
+}
+
+#[allow(unused)]
+fn criterion_benchmark_baseline(c: &mut Criterion) {
+    let mut group = c.benchmark_group("baseline");
+
+    let wopbs_message_2_carry_2_ks_pbs = CBSParam {
+        lwe_dimension: LweDimension(769),
+        glwe_dimension: GlweDimension(1),
+        polynomial_size: PolynomialSize(2048),
+        lwe_modular_std_dev: StandardDev(0.0000043131554647504185),
+        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
+        pbs_base_log: DecompositionBaseLog(15),
+        pbs_level: DecompositionLevelCount(2),
+        ks_level: DecompositionLevelCount(2),
+        ks_base_log: DecompositionBaseLog(6),
+        pfks_level: DecompositionLevelCount(2),
+        pfks_base_log: DecompositionBaseLog(15),
+        cbs_level: DecompositionLevelCount(3),
+        cbs_base_log: DecompositionBaseLog(5),
+        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
+    };
+
+    let wopbs_message_3_carry_3_ks_pbs = CBSParam {
+        lwe_dimension: LweDimension(873),
+        glwe_dimension: GlweDimension(1),
+        polynomial_size: PolynomialSize(2048),
+        lwe_modular_std_dev: StandardDev(0.0000006428797112843789),
+        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
+        pbs_base_log: DecompositionBaseLog(9),
+        pbs_level: DecompositionLevelCount(4),
+        ks_level: DecompositionLevelCount(1),
+        ks_base_log: DecompositionBaseLog(10),
+        pfks_level: DecompositionLevelCount(4),
+        pfks_base_log: DecompositionBaseLog(9),
+        cbs_level: DecompositionLevelCount(3),
+        cbs_base_log: DecompositionBaseLog(6),
+        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
+    };
+
+    let wopbs_message_4_carry_4_ks_pbs = CBSParam {
+        lwe_dimension: LweDimension(953),
+        glwe_dimension: GlweDimension(1),
+        polynomial_size: PolynomialSize(2048),
+        lwe_modular_std_dev: StandardDev(0.0000001486733969411098),
+        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
+        pbs_base_log: DecompositionBaseLog(9),
+        pbs_level: DecompositionLevelCount(4),
+        ks_level: DecompositionLevelCount(1),
+        ks_base_log: DecompositionBaseLog(11),
+        pfks_level: DecompositionLevelCount(4),
+        pfks_base_log: DecompositionBaseLog(9),
+        cbs_level: DecompositionLevelCount(6),
+        cbs_base_log: DecompositionBaseLog(4),
+        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
+    };
+
+    let param_list = [
+        (wopbs_message_2_carry_2_ks_pbs, "wopbs_message_2_carry_2"),
+        (wopbs_message_3_carry_3_ks_pbs, "wopbs_message_3_carry_3"),
+        (wopbs_message_4_carry_4_ks_pbs, "wopbs_message_4_carry_4"),
+    ];
+
+    for (param, id) in param_list.iter() {
+        let lwe_dimension = param.lwe_dimension;
+        let lwe_modular_std_dev = param.lwe_modular_std_dev;
+        let glwe_dimension = param.glwe_dimension;
+        let polynomial_size = param.polynomial_size;
+        let glwe_modular_std_dev = param.glwe_modular_std_dev;
+        let pbs_base_log = param.pbs_base_log;
+        let pbs_level = param.pbs_level;
+        let ks_base_log = param.ks_base_log;
+        let ks_level = param.ks_level;
+        let pfks_base_log = param.pfks_base_log;
+        let pfks_level = param.pfks_level;
+        let cbs_base_log = param.cbs_base_log;
+        let cbs_level = param.cbs_level;
+        let ciphertext_modulus = param.ciphertext_modulus;
+
+        let glwe_size = glwe_dimension.to_glwe_size();
+
+        // Set random generators and buffers
+        let mut boxed_seeder = new_seeder();
+        let seeder = boxed_seeder.as_mut();
+
+        let mut secret_generator = SecretRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed());
+        let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
+
+        // Generate keys
+        let (
+            lwe_sk,
+            glwe_sk,
+            lwe_sk_after_ks,
+            bsk,
+            ksk,
+        ) = keygen_pbs(
+            lwe_dimension,
+            glwe_dimension,
+            polynomial_size,
+            lwe_modular_std_dev,
+            glwe_modular_std_dev,
+            pbs_base_log,
+            pbs_level,
+            ks_base_log,
+            ks_level,
+            &mut secret_generator,
+            &mut encryption_generator,
+        );
+        let bsk = bsk.as_view();
+
+        let ksk = allocate_and_generate_new_lwe_keyswitch_key(
+            &lwe_sk,
+            &lwe_sk_after_ks,
+            ks_base_log,
+            ks_level,
+            lwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+
+        let pfpksk_list = allocate_and_generate_new_circuit_bootstrap_lwe_pfpksk_list(
+            &lwe_sk,
+            &glwe_sk,
+            pfks_base_log,
+            pfks_level,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+
+        // Set input LWE ciphertext
+        let msg = 1;
+        let lwe = allocate_and_encrypt_new_lwe_ciphertext(
+            &lwe_sk,
+            Plaintext(msg << 63),
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let mut lwe_ks = LweCiphertext::new(0u64, lwe_sk_after_ks.lwe_dimension().to_lwe_size(), ciphertext_modulus);
+        let mut lev = LweCiphertextList::new(0u64, lwe_sk.lwe_dimension().to_lwe_size(), LweCiphertextCount(cbs_level.0), ciphertext_modulus);
+        let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, cbs_base_log, cbs_level, ciphertext_modulus);
+        let mut fourier_ggsw = FourierGgswCiphertext::new(glwe_size, polynomial_size, cbs_base_log, cbs_level);
+
+        // Bench
+        let fft = Fft::new(polynomial_size);
+        let fft = fft.as_view();
+
+        let mut buffers = ComputationBuffers::new();
+        buffers.resize(
+            circuit_bootstrap_boolean_scratch::<u64>(
+                lwe_sk_after_ks.lwe_dimension().to_lwe_size(),
+                bsk.output_lwe_dimension().to_lwe_size(),
+                glwe_size,
+                polynomial_size,
+                fft,
+            )
+            .unwrap()
+            .unaligned_bytes_required(),
+        );
+        let mut stack = buffers.stack();
+
+        let mut ggsw = GgswCiphertext::new(u64::ZERO, glwe_size, polynomial_size, cbs_base_log, cbs_level, ciphertext_modulus);
+
+        group.bench_function(
+            BenchmarkId::new(
+                "CBS",
+                format!("{id}, CBS"),
+            ),
+            |b| b.iter(|| {
+                keyswitch_lwe_ciphertext(
+                    black_box(&ksk),
+                    black_box(&lwe),
+                    black_box(&mut lwe_ks),
+                );
+
+                circuit_bootstrap_boolean(
+                    bsk,
+                    lwe_ks.as_view(),
+                    ggsw.as_mut_view(),
+                    DeltaLog(63),
+                    pfpksk_list.as_view(),
+                    fft,
+                    stack.rb_mut(),
+                );
+            })
+        );
+
+        let max_err = get_max_err_ggsw_bit(
+            &glwe_sk,
+            ggsw.as_view(),
+            msg,
+        );
+
+        println!(
+            "n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_cbs: {}, B_cbs: 2^{}
+l_pfpks: {}, B_pfpks: 2^{},
+err: {:.2} bits",
+            lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_level.0, pbs_base_log.0, cbs_level.0, cbs_base_log.0,
+            pfks_level.0, pfks_base_log.0,
+            (max_err as f64).log2(),
+        );
+    }
 }
 
 #[allow(unused)]

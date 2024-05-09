@@ -158,6 +158,44 @@ pub fn gen_blind_rotate_local_assign<Scalar: UnsignedTorus + CastInto<usize>>(
     }
 }
 
+pub fn lwe_msb_bit_refresh<Scalar, InputCont, OutputCont>(
+    input: &LweCiphertext<InputCont>,
+    output: &mut LweCiphertext<OutputCont>,
+    refresh_bsk: FourierLweBootstrapKeyView,
+) where
+    Scalar: UnsignedTorus + CastInto<usize>,
+    InputCont: Container<Element = Scalar>,
+    OutputCont: ContainerMut<Element = Scalar>,
+{
+    assert_eq!(input.lwe_size(), refresh_bsk.input_lwe_dimension().to_lwe_size());
+    assert_eq!(output.lwe_size(), refresh_bsk.output_lwe_dimension().to_lwe_size());
+    assert_eq!(input.ciphertext_modulus(), output.ciphertext_modulus());
+
+    let glwe_size = refresh_bsk.glwe_size();
+    let polynomial_size = refresh_bsk.polynomial_size();
+    let half_box_size = polynomial_size.0 / 2;
+    let ciphertext_modulus = input.ciphertext_modulus();
+
+    let mut accumulator = (0..polynomial_size.0).map(|_| {
+        (Scalar::ONE).wrapping_neg() << (Scalar::BITS - 2)
+    }).collect::<Vec<Scalar>>();
+
+    for a_i in accumulator[0..half_box_size].iter_mut() {
+        *a_i = (*a_i).wrapping_neg();
+    }
+    accumulator.rotate_left(half_box_size);
+
+    let accumulator_plaintext = PlaintextList::from_container(accumulator);
+    let accumulator = allocate_and_trivially_encrypt_new_glwe_ciphertext(
+        glwe_size,
+        &accumulator_plaintext,
+        ciphertext_modulus,
+    );
+
+    programmable_bootstrap_lwe_ciphertext(input, output, &accumulator, &refresh_bsk);
+    lwe_ciphertext_plaintext_add_assign(output, Plaintext(Scalar::ONE << (Scalar::BITS - 2)));
+}
+
 pub fn lwe_msb_bit_to_lev<Scalar, InputCont, OutputCont>(
     lwe: &LweCiphertext<InputCont>,
     lev: &mut LweCiphertextList<OutputCont>,
