@@ -1,4 +1,4 @@
-use hom_trace::{gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, switch_scheme, trace_assign, FftType};
+use auto_base_conv::{gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, switch_scheme, trace_assign, FftType};
 use tfhe::core_crypto::{
     prelude::*,
     fft_impl::fft64::crypto::ggsw::FourierGgswCiphertextListView,

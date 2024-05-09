@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{
+use auto_base_conv::{
     automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, get_he_state_error, he_add_round_key, he_mix_columns, he_shift_rows, he_sub_bytes_by_patched_wwllp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, Aes128Ref, FftType, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 
@@ -310,10 +310,10 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
                 |b| b.iter(|| {
                     // ShiftRows
                     he_shift_rows(black_box(&mut he_state));
-        
+
                     // MixColumns
                     he_mix_columns(black_box(&mut he_state));
-        
+
                     // AddRoundKey
                     he_add_round_key(
                         black_box(&mut he_state),
@@ -367,7 +367,7 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
             |b| b.iter(|| {
                 // ShiftRows
                 he_shift_rows(&mut he_state);
-        
+
                 // AddRoundKey
                 he_add_round_key(&mut he_state, &he_round_keys[NUM_ROUNDS]);
             })

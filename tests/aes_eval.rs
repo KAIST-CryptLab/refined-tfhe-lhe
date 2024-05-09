@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{aes_he::*, aes_ref::*, automorphism::*, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType};
+use auto_base_conv::{aes_he::*, aes_ref::*, automorphism::*, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType};
 
 fn main() {
     // AES evaluation by patched WWLL+ circuit bootstrapping

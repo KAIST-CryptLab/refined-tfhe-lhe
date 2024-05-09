@@ -1,6 +1,6 @@
 use std::time::Instant;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{get_val_and_abs_err, generate_accumulator};
+use auto_base_conv::{get_val_and_abs_err, generate_accumulator};
 
 fn main() {
     // shortint parameters: message_2_carry_2_ks_pbs

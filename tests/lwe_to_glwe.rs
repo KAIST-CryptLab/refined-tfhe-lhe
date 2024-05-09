@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{
+use auto_base_conv::{
     automorphism::{gen_all_auto_keys, trace_assign}, fourier_glwe_keyswitch::FftType, get_glwe_l2_err, glwe_conv::convert_lwe_to_glwe_const, mod_switch::lwe_preprocessing_assign, utils::get_glwe_max_err
 };
 

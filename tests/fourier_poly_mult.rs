@@ -5,7 +5,7 @@ use rand::Rng;
 use tfhe::core_crypto::{
     algorithms::polynomial_algorithms::*, prelude::*
 };
-use hom_trace::fourier_poly_mult::*;
+use auto_base_conv::fourier_poly_mult::*;
 
 fn main() {
     let polynomial_size = PolynomialSize(8192);

@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use hom_trace::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
+use auto_base_conv::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
 
 type Scalar = u64;
 

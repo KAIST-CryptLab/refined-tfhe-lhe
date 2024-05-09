@@ -1,5 +1,5 @@
 use std::time::Instant;
-use hom_trace::{get_glwe_l2_err, get_glwe_max_err};
+use auto_base_conv::{get_glwe_l2_err, get_glwe_max_err};
 use tfhe::core_crypto::prelude::*;
 
 type Scalar = u64;
