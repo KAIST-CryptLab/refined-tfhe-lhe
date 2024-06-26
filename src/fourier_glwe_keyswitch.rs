@@ -12,7 +12,7 @@ use crate::{
 #[derive(Debug, Clone, Copy)]
 pub enum FftType {
     Vanilla,
-    Split32,
+    Split(usize),
     Split16,
 }
 
@@ -20,7 +20,7 @@ impl FftType {
     pub fn num_split(&self) -> usize {
         match self {
             FftType::Vanilla => 1,
-            FftType::Split32 => 2,
+            FftType::Split(_) => 2,
             FftType::Split16 => 4,
         }
     }
@@ -28,7 +28,7 @@ impl FftType {
     pub fn split_base_log(&self) -> usize {
         match self {
             FftType::Vanilla => 64,
-            FftType::Split32 => 32,
+            FftType::Split(b) => *b,
             FftType::Split16 => 16,
         }
     }
@@ -185,9 +185,24 @@ pub fn convert_standard_glwe_keyswitch_key_to_fourier<Scalar, InputCont, OutputC
             for (src, dst) in input_glev.as_ref().iter()
                 .zip(input_split_glev.as_mut().iter_mut())
             {
-                let shift_up_bit = split_base_log * (num_split - (k + 1));
-                let shift_down_bit = split_base_log * (num_split - 1);
-                *dst = ((*src) << shift_up_bit) >> shift_down_bit;
+                match fft_type {
+                    FftType::Vanilla => {
+                        *dst = *src;
+                    }
+                    FftType::Split(_) => {
+                        let (shift_up_bit, shift_down_bit) = if k == 0 {
+                            (Scalar::BITS - split_base_log, Scalar::BITS - split_base_log)
+                        } else {
+                            (0, split_base_log)
+                        };
+                        *dst = ((*src) << shift_up_bit) >> shift_down_bit;
+                    }
+                    FftType::Split16 => {
+                        let shift_up_bit = split_base_log * (num_split - (k + 1));
+                        let shift_down_bit = split_base_log * (num_split - 1);
+                        *dst = ((*src) << shift_up_bit) >> shift_down_bit;
+                    }
+                }
             }
 
             convert_standard_glev_ciphertext_to_fourier(&input_split_glev, &mut output_split_fourier_glev);
@@ -316,7 +331,12 @@ pub fn keyswitch_glwe_ciphertext<Scalar, KSKeyCont, InputCont, OutputCont>(
             fft.backward_as_torus(buffer_poly.as_mut_view(), buffer_fourier_poly.as_view(), stack.rb_mut());
         }
 
-        glwe_ciphertext_cleartext_mul_assign(&mut buffer_glwe, Cleartext(Scalar::ONE << (k * split_base_log)));
+        let log_scaling = match fft_type {
+            FftType::Vanilla => 0,
+            FftType::Split(_) => if k == 0 {0} else {split_base_log},
+            FftType::Split16 => k * split_base_log,
+        };
+        glwe_ciphertext_cleartext_mul_assign(&mut buffer_glwe, Cleartext(Scalar::ONE << log_scaling));
         glwe_ciphertext_add_assign(output, &buffer_glwe);
     }
 }

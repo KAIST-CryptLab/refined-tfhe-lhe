@@ -4,6 +4,7 @@ use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
 
 type Scalar = u64;
+const FFT_TYPE: FftType = FftType::Split(20);
 
 fn main() {
     let polynomial_size = PolynomialSize(2048);
@@ -13,8 +14,8 @@ fn main() {
     let large_glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
 
-    let decomp_level_count_to_small = DecompositionLevelCount(7);
-    let decomp_base_log_to_small = DecompositionBaseLog(7);
+    let decomp_level_count_to_small = DecompositionLevelCount(10);
+    let decomp_base_log_to_small = DecompositionBaseLog(4);
 
     let decomp_level_count_to_large = DecompositionLevelCount(3);
     let decomp_base_log_to_large = DecompositionBaseLog(15);
@@ -101,7 +102,7 @@ fn test_glwe_keyswitch(
         polynomial_size,
         decomp_base_log_to_small,
         decomp_level_count_to_small,
-        FftType::Split16,
+        FFT_TYPE,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
@@ -182,7 +183,7 @@ fn test_glwe_keyswitch(
         polynomial_size,
         decomp_base_log_to_large,
         decomp_level_count_to_large,
-        FftType::Split16,
+        FFT_TYPE,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&standard_glwe_ksk, &mut fourier_glwe_ksk);
 
