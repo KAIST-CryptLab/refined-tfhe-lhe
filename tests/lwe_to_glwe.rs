@@ -6,14 +6,16 @@ use auto_base_conv::{
 };
 
 type Scalar = u64;
+const NUM_WARMUP: usize = 1000;
 
 fn main() {
     let glwe_dimension = GlweDimension(1);
     let polynomial_size = PolynomialSize(2048);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(5);
-    let auto_level = DecompositionLevelCount(11);
-    let fft_type = FftType::Split16;
+
+    let auto_base_log = DecompositionBaseLog(12);
+    let auto_level = DecompositionLevelCount(4);
+    let fft_type = FftType::Split(43);
 
     test_lwe_to_glwe(
         polynomial_size,
@@ -95,7 +97,7 @@ fn test_lwe_to_glwe(
     time += now.elapsed();
 
     // EvalTr
-    for _ in 0..100 {
+    for _ in 0..NUM_WARMUP {
         // warm-up
         let mut tmp = output.clone();
         trace_assign(&mut tmp, &auto_keys);

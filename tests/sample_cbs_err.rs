@@ -3,7 +3,6 @@ use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, FftType, FourierGlweKeyswitchKey};
 
 type Scalar = u64;
-const FFT_TYPE: FftType = FftType::Split16;
 const NUM_REPEAT: usize = 1000;
 
 fn main() {
@@ -28,7 +27,9 @@ fn main() {
     let ss_base_log = DecompositionBaseLog(8);
     let ss_level = DecompositionLevelCount(6);
 
-    sample_wwllp_cbs_err(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, NUM_REPEAT);
+    let fft_type = FftType::Split(37);
+
+    sample_wwllp_cbs_err(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, fft_type, NUM_REPEAT);
 
     // wopbs_param_message_3_carry_3
     println!("-------- wopbs_param_message_3_carry_3 --------");
@@ -55,7 +56,11 @@ fn main() {
     let ss_base_log = DecompositionBaseLog(6);
     let ss_level = DecompositionLevelCount(9);
 
-    sample_high_prec_wwllp_cbs_err(lwe_dimension, glwe_dimension, large_glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, large_glwe_modular_std_dev, glwe_ks_to_large_base_log, glwe_ks_to_large_level, glwe_ks_from_large_base_log, glwe_ks_from_large_level, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, NUM_REPEAT);
+    let fft_type_to_large = FftType::Split(44);
+    let fft_type_from_large = FftType::Split(35);
+    let fft_type_auto = FftType::Split(36);
+
+    sample_high_prec_wwllp_cbs_err(lwe_dimension, glwe_dimension, large_glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, large_glwe_modular_std_dev, glwe_ks_to_large_base_log, glwe_ks_to_large_level, glwe_ks_from_large_base_log, glwe_ks_from_large_level, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, fft_type_to_large, fft_type_from_large, fft_type_auto, NUM_REPEAT);
 
     // wopbs_param_message_4_carry_4
     println!("-------- wopbs_param_message_4_carry_4 --------");
@@ -84,7 +89,11 @@ fn main() {
     let ss_base_log = DecompositionBaseLog(6);
     let ss_level = DecompositionLevelCount(9);
 
-    sample_high_prec_wwllp_cbs_err(lwe_dimension, glwe_dimension, large_glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, large_glwe_modular_std_dev, glwe_ks_to_large_base_log, glwe_ks_to_large_level, glwe_ks_from_large_base_log, glwe_ks_from_large_level, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, NUM_REPEAT);
+    let fft_type_to_large = FftType::Split(44);
+    let fft_type_from_large = FftType::Split(35);
+    let fft_type_auto = FftType::Split(36);
+
+    sample_high_prec_wwllp_cbs_err(lwe_dimension, glwe_dimension, large_glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, large_glwe_modular_std_dev, glwe_ks_to_large_base_log, glwe_ks_to_large_level, glwe_ks_from_large_base_log, glwe_ks_from_large_level, pbs_base_log, pbs_level, ks_base_log, ks_level, pfks_base_log, pfks_level, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, fft_type_to_large, fft_type_from_large, fft_type_auto, NUM_REPEAT);
 }
 
 
@@ -107,15 +116,16 @@ fn sample_wwllp_cbs_err(
     ss_level: DecompositionLevelCount,
     cbs_base_log: DecompositionBaseLog,
     cbs_level: DecompositionLevelCount,
+    fft_type: FftType,
     num_repeat: usize,
 ) {
     println!(
         "n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_ks: 2^{}, l_ks: {}, B_cbs: 2^{}, l_cbs: {},
 B_pfks: 2^{}, l_pfks: {},
-B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}\n",
+B_auto: 2^{}, l_auto: {}, fft_type: {:?}, B_ss: 2^{}, l_ss: {}\n",
         lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, ks_base_log.0, ks_level.0, cbs_base_log.0, cbs_level.0,
         pfks_base_log.0, pfks_level.0,
-        auto_base_log.0, auto_level.0, ss_base_log.0, ss_level.0,
+        auto_base_log.0, auto_level.0, fft_type, ss_base_log.0, ss_level.0,
     );
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
     let glwe_size = glwe_dimension.to_glwe_size();
@@ -164,7 +174,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}\n",
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        FFT_TYPE,
+        fft_type,
         &glwe_sk,
         glwe_modular_std_dev,
         &mut encryption_generator,
@@ -461,15 +471,24 @@ fn sample_high_prec_wwllp_cbs_err(
     ss_level: DecompositionLevelCount,
     cbs_base_log: DecompositionBaseLog,
     cbs_level: DecompositionLevelCount,
+    fft_type_to_large: FftType,
+    fft_type_from_large: FftType,
+    fft_type_auto: FftType,
     num_repeat: usize,
 ) {
     println!(
         "n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_ks: 2^{}, l_ks: {}, B_cbs: 2^{}, l_cbs: {},
 B_pfks: 2^{}, l_pfks: {},
-B_auto: 2^{}, l_auto: {}, B_to_large: 2^{}, l_to_large: {}, B_from_large: 2^{}, l_from_large: {}, B_ss: 2^{}, l_ss: {}\n",
+B_auto: 2^{}, l_auto: {}, fft_type_auto: {:?},
+B_to_large: 2^{}, l_to_large: {}, fft_type_to_large: {:?},
+B_from_large: 2^{}, l_from_large: {}, fft_type_from_large: {:?},
+B_ss: 2^{}, l_ss: {}\n",
         lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, ks_base_log.0, ks_level.0, cbs_base_log.0, cbs_level.0,
         pfks_base_log.0, pfks_level.0,
-        auto_base_log.0, auto_level.0, glwe_ks_to_large_base_log.0, glwe_ks_to_large_level.0, glwe_ks_from_large_base_log.0, glwe_ks_from_large_level.0, ss_base_log.0, ss_level.0,
+        auto_base_log.0, auto_level.0, fft_type_auto,
+        glwe_ks_to_large_base_log.0, glwe_ks_to_large_level.0, fft_type_to_large,
+        glwe_ks_from_large_base_log.0, glwe_ks_from_large_level.0, fft_type_from_large,
+        ss_base_log.0, ss_level.0,
     );
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
     let glwe_size = glwe_dimension.to_glwe_size();
@@ -533,7 +552,7 @@ B_auto: 2^{}, l_auto: {}, B_to_large: 2^{}, l_to_large: {}, B_from_large: 2^{}, 
         polynomial_size,
         glwe_ks_to_large_base_log,
         glwe_ks_to_large_level,
-        FFT_TYPE,
+        fft_type_to_large,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&glwe_ksk_to_large, &mut fourier_glwe_ksk_to_large);
 
@@ -552,14 +571,14 @@ B_auto: 2^{}, l_auto: {}, B_to_large: 2^{}, l_to_large: {}, B_from_large: 2^{}, 
         polynomial_size,
         glwe_ks_from_large_base_log,
         glwe_ks_from_large_level,
-        FFT_TYPE,
+        fft_type_from_large,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&glwe_ksk_from_large, &mut fourier_glwe_ksk_from_large);
 
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        FFT_TYPE,
+        fft_type_auto,
         &large_glwe_sk,
         large_glwe_modular_std_dev,
         &mut encryption_generator,

@@ -7,41 +7,6 @@ const NUM_REPEAT: usize = 1000;
 
 fn main() {
     /* LWE to GLWE by trace with preprocessing */
-    // -------- wopbs_message_2_carry_2 -------- //
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(7);
-    let auto_level = DecompositionLevelCount(6);
-    let modulus_sup = 16;
-    let log_scale = 59;
-    let fft_type = FftType::Split16;
-
-    sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
-
-    // -------- wopbs_message_3_carry_3 -------- //
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(5);
-    let auto_level = DecompositionLevelCount(11);
-    let modulus_sup = 16;
-    let log_scale = 59;
-    let fft_type = FftType::Split16;
-
-    sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
-
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(3);
-    let auto_level = DecompositionLevelCount(18);
-    let modulus_sup = 16;
-    let log_scale = 59;
-    let fft_type = FftType::Split16;
-
-    sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
-
     // -------- param_message_2_carry_2 -------- //
     let polynomial_size = PolynomialSize(2048);
     let glwe_dimension = GlweDimension(1);
@@ -61,18 +26,7 @@ fn main() {
     let auto_level = DecompositionLevelCount(3);
     let modulus_sup = 16;
     let log_scale = 59;
-    let fft_type = FftType::Split16;
-
-    sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
-
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let auto_base_log = DecompositionBaseLog(10);
-    let auto_level = DecompositionLevelCount(4);
-    let modulus_sup = 16;
-    let log_scale = 59;
-    let fft_type = FftType::Split16;
+    let fft_type = FftType::Split(42);
 
     sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
 
@@ -80,22 +34,11 @@ fn main() {
     let polynomial_size = PolynomialSize(8192);
     let glwe_dimension = GlweDimension(1);
     let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
-    let auto_base_log = DecompositionBaseLog(20);
-    let auto_level = DecompositionLevelCount(2);
-    let modulus_sup = 64;
-    let log_scale = 57;
-    let fft_type = FftType::Split16;
-
-    sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
-
-    let polynomial_size = PolynomialSize(8192);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
     let auto_base_log = DecompositionBaseLog(15);
     let auto_level = DecompositionLevelCount(3);
     let modulus_sup = 64;
     let log_scale = 57;
-    let fft_type = FftType::Split16;
+    let fft_type = FftType::Split(46);
 
     sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
 
@@ -106,7 +49,7 @@ fn main() {
     let auto_level = DecompositionLevelCount(4);
     let modulus_sup = 64;
     let log_scale = 57;
-    let fft_type = FftType::Split16;
+    let fft_type = FftType::Split(43);
 
     sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
 
@@ -118,7 +61,7 @@ fn main() {
     let auto_level = DecompositionLevelCount(3);
     let modulus_sup = 256;
     let log_scale = 55;
-    let fft_type = FftType::Split16;
+    let fft_type = FftType::Split(48);
 
     sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
 
@@ -129,7 +72,7 @@ fn main() {
     let auto_level = DecompositionLevelCount(4);
     let modulus_sup = 256;
     let log_scale = 55;
-    let fft_type = FftType::Split16;
+    let fft_type = FftType::Split(46);
 
     sample_lwe_to_glwe_by_trace_with_preprocessing(polynomial_size, glwe_dimension, glwe_modular_std_dev, auto_base_log, auto_level, modulus_sup, log_scale, fft_type, NUM_REPEAT);
 
@@ -156,7 +99,7 @@ fn main() {
     let polynomial_size = PolynomialSize(8192);
     let glwe_dimension = GlweDimension(1);
     let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
-    let pksk_base_log = DecompositionBaseLog(29);
+    let pksk_base_log = DecompositionBaseLog(30);
     let pksk_level = DecompositionLevelCount(1);
     let ks_base_log = DecompositionBaseLog(3);
     let ks_level = DecompositionLevelCount(6);
@@ -172,7 +115,7 @@ fn main() {
     let polynomial_size = PolynomialSize(32768);
     let glwe_dimension = GlweDimension(1);
     let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
-    let pksk_base_log = DecompositionBaseLog(29);
+    let pksk_base_log = DecompositionBaseLog(32);
     let pksk_level = DecompositionLevelCount(1);
     let ks_base_log = DecompositionBaseLog(3);
     let ks_level = DecompositionLevelCount(7);

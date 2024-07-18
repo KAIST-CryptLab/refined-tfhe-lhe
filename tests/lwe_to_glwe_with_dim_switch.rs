@@ -1,10 +1,9 @@
 use std::time::Instant;
 
-use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_const, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, get_glwe_l2_err, get_glwe_max_err, glwe_preprocessing_assign, keyswitch_glwe_ciphertext, trace_assign, FftType, FourierGlweKeyswitchKey};
+use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_const, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, get_glwe_l2_err, get_glwe_max_err, get_val_and_abs_err, glwe_preprocessing_assign, keyswitch_glwe_ciphertext, trace_assign, FftType, FourierGlweKeyswitchKey};
 use tfhe::core_crypto::prelude::*;
 
 type Scalar = u64;
-const FFT_TYPE: FftType = FftType::Split16;
 
 fn main() {
     let polynomial_size = PolynomialSize(2048);
@@ -15,12 +14,15 @@ fn main() {
 
     let glwe_ks_base_log_to_large = DecompositionBaseLog(15);
     let glwe_ks_level_to_large = DecompositionLevelCount(3);
+    let fft_type_to_large = FftType::Split(44);
 
-    let glwe_ks_base_log_from_large = DecompositionBaseLog(7);
-    let glwe_ks_level_from_large = DecompositionLevelCount(7);
+    let glwe_ks_base_log_from_large = DecompositionBaseLog(5);
+    let glwe_ks_level_from_large = DecompositionLevelCount(10);
+    let fft_type_from_large = FftType::Split(35);
 
-    let auto_base_log = DecompositionBaseLog(10);
-    let auto_level = DecompositionLevelCount(6);
+    let auto_base_log = DecompositionBaseLog(6);
+    let auto_level = DecompositionLevelCount(10);
+    let fft_type_auto = FftType::Split(36);
 
     test_lwe_to_glwe_with_dim_switch(
         polynomial_size,
@@ -34,6 +36,9 @@ fn main() {
         glwe_ks_level_from_large,
         auto_base_log,
         auto_level,
+        fft_type_to_large,
+        fft_type_from_large,
+        fft_type_auto,
     );
 }
 
@@ -49,10 +54,19 @@ fn test_lwe_to_glwe_with_dim_switch(
     glwe_ks_level_from_large: DecompositionLevelCount,
     auto_base_log: DecompositionBaseLog,
     auto_level: DecompositionLevelCount,
+    fft_type_to_large: FftType,
+    fft_type_from_large: FftType,
+    fft_type_auto: FftType,
 ) {
     println!(
-        "N: {}, k: {}, k_large: {}\nB_to_large: 2^{}, l_to_large: {}, B_from_large: 2^{}, l_from_lareg: {}\nB_auto: 2^{}, l_auto: {}",
-        polynomial_size.0, glwe_dimension.0, large_glwe_dimension.0, glwe_ks_base_log_to_large.0, glwe_ks_level_to_large.0, glwe_ks_base_log_from_large.0, glwe_ks_level_from_large.0, auto_base_log.0, auto_level.0,
+"N: {}, k: {}, k_large: {}
+B_to_large: 2^{}, l_to_large: {}, fft_type_to_large: {:?}
+B_from_large: 2^{}, l_from_large: {}, fft_type_from_large: {:?}
+B_auto: 2^{}, l_auto: {}, fft_type_auto: {:?}",
+        polynomial_size.0, glwe_dimension.0, large_glwe_dimension.0,
+        glwe_ks_base_log_to_large.0, glwe_ks_level_to_large.0, fft_type_to_large,
+        glwe_ks_base_log_from_large.0, glwe_ks_level_from_large.0, fft_type_from_large,
+        auto_base_log.0, auto_level.0, fft_type_auto,
     );
 
     let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
@@ -71,6 +85,7 @@ fn test_lwe_to_glwe_with_dim_switch(
 
     let large_glwe_size = large_glwe_dimension.to_glwe_size();
     let large_glwe_sk: GlweSecretKey<Vec<Scalar>> = GlweSecretKey::generate_new_binary(large_glwe_dimension, polynomial_size, &mut secret_generator);
+    let large_lwe_sk = large_glwe_sk.clone().into_lwe_secret_key();
 
     let glwe_ksk_to_large = allocate_and_generate_new_glwe_keyswitch_key(
         &glwe_sk,
@@ -87,7 +102,7 @@ fn test_lwe_to_glwe_with_dim_switch(
         polynomial_size,
         glwe_ks_base_log_to_large,
         glwe_ks_level_to_large,
-        FFT_TYPE,
+        fft_type_to_large,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&glwe_ksk_to_large, &mut fourier_glwe_ksk_to_large);
 
@@ -106,14 +121,14 @@ fn test_lwe_to_glwe_with_dim_switch(
         polynomial_size,
         glwe_ks_base_log_from_large,
         glwe_ks_level_from_large,
-        FFT_TYPE,
+        fft_type_from_large,
     );
     convert_standard_glwe_keyswitch_key_to_fourier(&glwe_ksk_from_large, &mut fourier_glwe_ksk_from_large);
 
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        FFT_TYPE,
+        fft_type_auto,
         &large_glwe_sk,
         large_glwe_modular_std_dev,
         &mut encryption_generator,
@@ -144,6 +159,11 @@ fn test_lwe_to_glwe_with_dim_switch(
     let time = now.elapsed();
     println!("GLWE KS to large dim: {} ms", time.as_micros() as f64 / 1000f64);
 
+    let mut buf = LweCiphertext::new(Scalar::ZERO, large_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
+    extract_lwe_sample_from_glwe_ciphertext(&glwe_large, &mut buf, MonomialDegree(0));
+    let (_, err) = get_val_and_abs_err(&large_lwe_sk, &buf, Scalar::ZERO, Scalar::ONE);
+    println!("  Err: {:.2} bits", (err as f64).log2());
+
     // GLWE preprocessing
     glwe_preprocessing_assign(&mut glwe_large);
 
@@ -152,6 +172,11 @@ fn test_lwe_to_glwe_with_dim_switch(
     trace_assign(&mut glwe_large, &auto_keys);
     let time = now.elapsed();
     println!("Trace eval: {} ms", time.as_micros() as f64 / 1000f64);
+
+    let mut buf = LweCiphertext::new(Scalar::ZERO, large_lwe_sk.lwe_dimension().to_lwe_size(), ciphertext_modulus);
+    extract_lwe_sample_from_glwe_ciphertext(&glwe_large, &mut buf, MonomialDegree(0));
+    let (_, err) = get_val_and_abs_err(&large_lwe_sk, &buf, Scalar::ZERO, Scalar::ONE);
+    println!("  Err: {:.2} bits", (err as f64).log2());
 
     // GlweKS from large
     let mut glwe_out = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
