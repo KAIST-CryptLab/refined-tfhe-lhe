@@ -27,7 +27,7 @@ pub fn he_add_round_key<Scalar, StateCont, RkCont>(
     lwe_ciphertext_list_add_assign(he_state, he_round_key.as_view());
 }
 
-pub fn he_sub_bytes_by_patched_wwllp_cbs<Scalar, InputCont, OutputCont>(
+pub fn he_sub_bytes_by_patched_wwlp_cbs<Scalar, InputCont, OutputCont>(
     he_state_input: &LweCiphertextList<InputCont>,
     he_state_output: &mut LweCiphertextList<OutputCont>,
     fourier_bsk: FourierLweBootstrapKeyView,
@@ -44,7 +44,7 @@ pub fn he_sub_bytes_by_patched_wwllp_cbs<Scalar, InputCont, OutputCont>(
     for (input_byte, mut output_byte) in he_state_input.chunks_exact(BYTESIZE)
         .zip(he_state_output.chunks_exact_mut(BYTESIZE))
     {
-        he_sbox_eval_by_patched_wwllp_cbs(
+        he_sbox_eval_by_patched_wwlp_cbs(
             &input_byte,
             &mut output_byte,
             fourier_bsk,
@@ -179,7 +179,7 @@ where
     he_byte.as_mut().clone_from_slice(buf.as_ref());
 }
 
-fn he_sbox_eval_by_patched_wwllp_cbs<Scalar, InCont, OutCont>(
+fn he_sbox_eval_by_patched_wwlp_cbs<Scalar, InCont, OutCont>(
     input: &LweCiphertextList<InCont>,
     output: &mut LweCiphertextList<OutCont>,
     fourier_bsk: FourierLweBootstrapKeyView,

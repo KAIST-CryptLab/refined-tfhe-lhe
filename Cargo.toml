@@ -13,6 +13,7 @@ dyn-stack = { version = "0.9" }
 aes = { version = "*" }
 rayon = { version = "*", optional = true }
 pulp = "0.18.8"
+lazy_static = "1.4"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }

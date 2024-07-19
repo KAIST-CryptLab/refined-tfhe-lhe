@@ -1,12 +1,12 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{
-    automorphism::gen_all_auto_keys, glwe_conv::*, FftType
+    automorphism::gen_all_auto_keys, glwe_conv::*, auto_conv_instance::*,
 };
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(1000);
+    config = Criterion::default().sample_size(10000);
     targets =
         criterion_benchmark_trace_with_preprocessing,
         criterion_benchmark_small_pksk,
@@ -14,209 +14,28 @@ criterion_group!(
 );
 criterion_main!(benches);
 
-#[allow(unused)]
-struct ParamAuto<Scalar: UnsignedInteger> {
-    polynomial_size: PolynomialSize,
-    glwe_dimension: GlweDimension,
-    glwe_modular_std_dev: StandardDev,
-    auto_base_log: DecompositionBaseLog,
-    auto_level: DecompositionLevelCount,
-    fft_type: FftType,
-    ciphertext_modulus: CiphertextModulus::<Scalar>,
-    log_scale: usize,
-}
-
-#[allow(unused)]
-struct ParamLargePKSK<Scalar: UnsignedInteger> {
-    polynomial_size: PolynomialSize,
-    glwe_dimension: GlweDimension,
-    glwe_modular_std_dev: StandardDev,
-    pksk_base_log: DecompositionBaseLog,
-    pksk_level: DecompositionLevelCount,
-    ciphertext_modulus: CiphertextModulus::<Scalar>,
-    log_scale: usize,
-}
-
-#[allow(unused)]
-struct ParamSmallPKSK<Scalar: UnsignedInteger> {
-    lwe_dimension: LweDimension,
-    lwe_modular_std_dev: StandardDev,
-    polynomial_size: PolynomialSize,
-    glwe_dimension: GlweDimension,
-    glwe_modular_std_dev: StandardDev,
-    ks_base_log: DecompositionBaseLog,
-    ks_level: DecompositionLevelCount,
-    pksk_base_log: DecompositionBaseLog,
-    pksk_level: DecompositionLevelCount,
-    ciphertext_modulus: CiphertextModulus::<Scalar>,
-    log_scale: usize,
-}
-
 
 #[allow(unused)]
 fn criterion_benchmark_trace_with_preprocessing(c: &mut Criterion) {
     let mut group = c.benchmark_group("lwe_to_glwe_conversion");
 
-    // -------- message_2_carry_2 -------- //
-    let shortint_message_2_carry_2_level_3_vanilla = ParamAuto {
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(12),
-        auto_level: DecompositionLevelCount(3),
-        fft_type: FftType::Vanilla,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    let shortint_message_2_carry_2_level_4_split_32 = ParamAuto {
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(10),
-        auto_level: DecompositionLevelCount(4),
-        fft_type: FftType::Split32,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    let shortint_message_2_carry_2_level_3_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(13),
-        auto_level: DecompositionLevelCount(3),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    let shortint_message_2_carry_2_level_4_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(10),
-        auto_level: DecompositionLevelCount(4),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    // -------- message_3_carry_3 -------- //
-    let shortint_message_3_carry_3_level_4_split_32 = ParamAuto {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        auto_base_log: DecompositionBaseLog(10),
-        auto_level: DecompositionLevelCount(4),
-        fft_type: FftType::Split32,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_3_carry_3_level_5_split_32 = ParamAuto {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        auto_base_log: DecompositionBaseLog(10),
-        auto_level: DecompositionLevelCount(5),
-        fft_type: FftType::Split32,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_3_carry_3_level_2_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(20),
-        auto_level: DecompositionLevelCount(2),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_3_carry_3_level_3_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(15),
-        auto_level: DecompositionLevelCount(3),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_3_carry_3_level_4_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        auto_base_log: DecompositionBaseLog(12),
-        auto_level: DecompositionLevelCount(4),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    // -------- message_4_carry_4 -------- //
-    let shortint_message_4_carry_4_level_6_split_32 = ParamAuto {
-        polynomial_size: PolynomialSize(32768),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        auto_base_log: DecompositionBaseLog(8),
-        auto_level: DecompositionLevelCount(6),
-        fft_type: FftType::Split32,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 55,
-    };
-
-    let shortint_message_4_carry_4_level_3_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(32768),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        auto_base_log: DecompositionBaseLog(15),
-        auto_level: DecompositionLevelCount(3),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 55,
-    };
-
-    let shortint_message_4_carry_4_level_4_split_16 = ParamAuto {
-        polynomial_size: PolynomialSize(32768),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        auto_base_log: DecompositionBaseLog(13),
-        auto_level: DecompositionLevelCount(4),
-        fft_type: FftType::Split16,
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 55,
-    };
-
     let param_list = [
-        (shortint_message_2_carry_2_level_3_vanilla, "shortint_message_2_carry_2, auto level 3, vanilla"),
-        (shortint_message_2_carry_2_level_4_split_32, "shortint_message_2_carry_2, auto level 4, split 32"),
-        (shortint_message_2_carry_2_level_3_split_16, "shortint_message_2_carry_2, auto level 3, split 16"),
-        (shortint_message_2_carry_2_level_4_split_16, "shortint_message_2_carry_2, auto level 4, split 16"),
-        //
-        (shortint_message_3_carry_3_level_4_split_32, "shortint_message_3_carry_3, auto level 4, split 32"),
-        (shortint_message_3_carry_3_level_5_split_32, "shortint_message_3_carry_3, auto level 5, split 32"),
-        (shortint_message_3_carry_3_level_2_split_16, "shortint_message_3_carry_3, auto level 2, split 16"),
-        (shortint_message_3_carry_3_level_3_split_16, "shortint_message_3_carry_3, auto level 3, split 16"),
-        (shortint_message_3_carry_3_level_4_split_16, "shortint_message_3_carry_3, auto level 4, split 16"),
-        //
-        (shortint_message_4_carry_4_level_6_split_32, "shortint_message_4_carry_4, auto level 6, split 32"),
-        (shortint_message_4_carry_4_level_3_split_16, "shortint_message_4_carry_4, auto level 3, split 16"),
-        (shortint_message_4_carry_4_level_4_split_16, "shortint_message_4_carry_4, auto level 4, split 16"),
+        (*AUTO_PARAM_2_2_VANILLA, "param_2_2_vanilla", 59),
+        (*AUTO_PARAM_2_2_LEV_3, "param_2_2_lev_3", 59),
+        (*AUTO_PARAM_3_3_LEV_4, "param_3_3_lev_4", 57),
+        (*AUTO_PARAM_3_3_LEV_5, "param_3_3_lev_5", 57),
+        (*AUTO_PARAM_4_4_LEV_3, "param_4_4_lev_3", 55),
+        (*AUTO_PARAM_4_4_LEV_4, "param_4_4_lev_4", 55),
     ];
 
-    for (param, id) in param_list.iter() {
-        let polynomial_size = param.polynomial_size;
-        let glwe_dimension = param.glwe_dimension;
-        let glwe_modular_std_dev = param.glwe_modular_std_dev;
-        let auto_base_log = param.auto_base_log;
-        let auto_level = param.auto_level;
-        let fft_type = param.fft_type;
-        let ciphertext_modulus = param.ciphertext_modulus;
+    for (param, id, log_scale) in param_list.iter() {
+        let polynomial_size = param.polynomial_size();
+        let glwe_dimension = param.glwe_dimension();
+        let glwe_modular_std_dev = param.glwe_modular_std_dev();
+        let auto_base_log = param.auto_base_log();
+        let auto_level = param.auto_level();
+        let fft_type = param.fft_type();
+        let ciphertext_modulus = param.ciphertext_modulus();
 
         // Set random generators and buffers
         let mut boxed_seeder = new_seeder();
@@ -268,7 +87,6 @@ fn criterion_benchmark_trace_with_preprocessing(c: &mut Criterion) {
         let mut pt = PlaintextList::new(0, PlaintextCount(polynomial_size.0));
         decrypt_glwe_ciphertext(&glwe_sk, &glwe, &mut pt);
 
-        let log_scale = param.log_scale;
         let mut max_err = 0;
         for val in pt.as_ref().iter() {
             let rounding = val & (1 << (log_scale - 1));
@@ -296,50 +114,19 @@ fn criterion_benchmark_trace_with_preprocessing(c: &mut Criterion) {
 fn criterion_benchmark_large_pksk(c: &mut Criterion) {
     let mut group = c.benchmark_group("lwe_to_glwe_conversion");
 
-    let shortint_message_2_carry_2_level_1 = ParamLargePKSK {
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        pksk_base_log: DecompositionBaseLog(24),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    let shortint_message_3_carry_3_level_1 = ParamLargePKSK {
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        pksk_base_log: DecompositionBaseLog(29),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_4_carry_4_level_1 = ParamLargePKSK {
-        polynomial_size: PolynomialSize(32768),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        pksk_base_log: DecompositionBaseLog(29),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 55,
-    };
-
-
     let param_list = [
-        (shortint_message_2_carry_2_level_1, "shortint_message_2_carry_2, pksk level 1"),
-        (shortint_message_3_carry_3_level_1, "shortint_message_3_carry_3, pksk level 1"),
-        (shortint_message_4_carry_4_level_1, "shortint_message_4_carry_4, pksk level 1"),
+        (*PKSK_PARAM_2_2, "param_2_2_large_pksk", 59),
+        (*PKSK_PARAM_3_3, "param_3_3_large_pksk", 57),
+        (*PKSK_PARAM_4_4, "param_4_4_large_pksk", 55),
     ];
 
-    for (param, id) in param_list.iter() {
-        let polynomial_size = param.polynomial_size;
-        let glwe_dimension = param.glwe_dimension;
-        let glwe_modular_std_dev = param.glwe_modular_std_dev;
-        let pksk_base_log = param.pksk_base_log;
-        let pksk_level = param.pksk_level;
-        let ciphertext_modulus = param.ciphertext_modulus;
+    for (param, id, log_scale) in param_list.iter() {
+        let polynomial_size = param.polynomial_size();
+        let glwe_dimension = param.glwe_dimension();
+        let glwe_modular_std_dev = param.glwe_modular_std_dev();
+        let pksk_base_log = param.pksk_base_log();
+        let pksk_level = param.pksk_level();
+        let ciphertext_modulus = param.ciphertext_modulus();
 
         // Set random generators and buffers
         let mut boxed_seeder = new_seeder();
@@ -392,7 +179,6 @@ fn criterion_benchmark_large_pksk(c: &mut Criterion) {
         let mut pt = PlaintextList::new(0, PlaintextCount(polynomial_size.0));
         decrypt_glwe_ciphertext(&glwe_sk, &glwe, &mut pt);
 
-        let log_scale = param.log_scale;
         let mut max_err = 0;
         for val in pt.as_ref().iter() {
             let rounding = val & (1 << (log_scale - 1));
@@ -420,66 +206,24 @@ fn criterion_benchmark_large_pksk(c: &mut Criterion) {
 fn criterion_benchmark_small_pksk(c: &mut Criterion) {
     let mut group = c.benchmark_group("lwe_to_glwe_conversion");
 
-    let shortint_message_2_carry_2_level_1 = ParamSmallPKSK {
-        lwe_dimension: LweDimension(742),
-        lwe_modular_std_dev: StandardDev(0.000007069849454709433),
-        polynomial_size: PolynomialSize(2048),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.00000000000000029403601535432533),
-        ks_base_log: DecompositionBaseLog(3),
-        ks_level: DecompositionLevelCount(5),
-        pksk_base_log: DecompositionBaseLog(24),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 59,
-    };
-
-    let shortint_message_3_carry_3_level_1 = ParamSmallPKSK {
-        lwe_dimension: LweDimension(864),
-        lwe_modular_std_dev: StandardDev(0.000000757998020150446),
-        polynomial_size: PolynomialSize(8192),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        ks_base_log: DecompositionBaseLog(3),
-        ks_level: DecompositionLevelCount(6),
-        pksk_base_log: DecompositionBaseLog(29),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 57,
-    };
-
-    let shortint_message_4_carry_4_level_1 = ParamSmallPKSK {
-        lwe_dimension: LweDimension(996),
-        lwe_modular_std_dev: StandardDev(0.00000006767666038309478),
-        polynomial_size: PolynomialSize(32768),
-        glwe_dimension: GlweDimension(1),
-        glwe_modular_std_dev: StandardDev(0.0000000000000000002168404344971009),
-        ks_base_log: DecompositionBaseLog(3),
-        ks_level: DecompositionLevelCount(7),
-        pksk_base_log: DecompositionBaseLog(29),
-        pksk_level: DecompositionLevelCount(1),
-        ciphertext_modulus: CiphertextModulus::<u64>::new_native(),
-        log_scale: 55,
-    };
-
-
     let param_list = [
-        (shortint_message_2_carry_2_level_1, "shortint_message_2_carry_2, pksk level 1"),
-        (shortint_message_3_carry_3_level_1, "shortint_message_3_carry_3, pksk level 1"),
-        (shortint_message_4_carry_4_level_1, "shortint_message_4_carry_4, pksk level 1"),
+        (*PKSK_PARAM_2_2, "param_2_2_small_pksk", 59),
+        (*PKSK_PARAM_3_3, "param_3_3_small_pksk", 57),
+        (*PKSK_PARAM_4_4, "param_4_4_small_pksk", 55),
     ];
 
-    for (param, id) in param_list.iter() {
-        let lwe_dimension = param.lwe_dimension;
-        let lwe_modular_std_dev = param.lwe_modular_std_dev;
-        let polynomial_size = param.polynomial_size;
-        let glwe_dimension = param.glwe_dimension;
-        let glwe_modular_std_dev = param.glwe_modular_std_dev;
-        let ks_base_log = param.ks_base_log;
-        let ks_level = param.ks_level;
-        let pksk_base_log = param.pksk_base_log;
-        let pksk_level = param.pksk_level;
-        let ciphertext_modulus = param.ciphertext_modulus;
+
+    for (param, id, log_scale) in param_list.iter() {
+        let lwe_dimension = param.lwe_dimension();
+        let lwe_modular_std_dev = param.lwe_modular_std_dev();
+        let polynomial_size = param.polynomial_size();
+        let glwe_dimension = param.glwe_dimension();
+        let glwe_modular_std_dev = param.glwe_modular_std_dev();
+        let ks_base_log = param.ks_base_log();
+        let ks_level = param.ks_level();
+        let pksk_base_log = param.pksk_base_log();
+        let pksk_level = param.pksk_level();
+        let ciphertext_modulus = param.ciphertext_modulus();
 
         // Set random generators and buffers
         let mut boxed_seeder = new_seeder();
@@ -550,7 +294,6 @@ fn criterion_benchmark_small_pksk(c: &mut Criterion) {
         let mut pt = PlaintextList::new(0, PlaintextCount(polynomial_size.0));
         decrypt_glwe_ciphertext(&glwe_sk, &glwe, &mut pt);
 
-        let log_scale = param.log_scale;
         let mut max_err = 0;
         for val in pt.as_ref().iter() {
             let rounding = val & (1 << (log_scale - 1));

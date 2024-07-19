@@ -5,7 +5,7 @@ use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{aes_he::*, aes_ref::*, automorphism::*, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType};
 
 fn main() {
-    // AES evaluation by patched WWLL+ circuit bootstrapping
+    // AES evaluation by patched WWL+ circuit bootstrapping
     let lwe_dimension = LweDimension(768);
     let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
     let polynomial_size = PolynomialSize(1024);
@@ -30,7 +30,7 @@ fn main() {
     let ss_level = DecompositionLevelCount(6);
     let log_lut_count = LutCountLog(2);
 
-    test_aes_eval_by_patched_wwllp_cbs(
+    test_aes_eval_by_patched_wwlp_cbs(
         lwe_dimension,
         polynomial_size,
         glwe_dimension,
@@ -54,7 +54,7 @@ fn main() {
 }
 
 #[allow(unused)]
-fn test_aes_eval_by_patched_wwllp_cbs(
+fn test_aes_eval_by_patched_wwlp_cbs(
     lwe_dimension: LweDimension,
     polynomial_size: PolynomialSize,
     glwe_dimension: GlweDimension,
@@ -77,7 +77,7 @@ fn test_aes_eval_by_patched_wwllp_cbs(
     ciphertext_modulus: CiphertextModulus::<u64>,
 ) {
     println!(
-"==== AES evaluation by patched WWLL+ circuit bootstrapping ====
+"==== AES evaluation by patched WWL+ circuit bootstrapping ====
 n: {}, N: {}, k: {}, l_glwe_ds: {}, B_glwe_ds: 2^{}
 l_pbs: {}, B_pbs: 2^{}, l_ggsw: {}, B_ggsw: 2^{}, LutCount: 2^{},
 l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
@@ -237,7 +237,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
         // SubBytes
         let now = Instant::now();
-        he_sub_bytes_by_patched_wwllp_cbs(
+        he_sub_bytes_by_patched_wwlp_cbs(
             &he_state_ks,
             &mut he_state,
             fourier_bsk,
@@ -295,7 +295,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     // SubBytes
     let now = Instant::now();
-    he_sub_bytes_by_patched_wwllp_cbs(
+    he_sub_bytes_by_patched_wwlp_cbs(
         &he_state_ks,
         &mut he_state,
         fourier_bsk,

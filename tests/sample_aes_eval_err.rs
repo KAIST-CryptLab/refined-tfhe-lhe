@@ -1,69 +1,50 @@
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{
-    automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, get_he_state_error, he_add_round_key, he_mix_columns, he_shift_rows, he_sub_bytes_by_patched_wwllp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, Aes128Ref, FftType, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
+    automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, get_he_state_error, he_add_round_key, he_mix_columns, he_shift_rows, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, Aes128Ref, aes_params::*, aes_instances::*, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 
-type Scalar = u64;
-const AUTO_FFT_TYPE: FftType = FftType::Split16;
-const DS_FFT_TYPE: FftType = FftType::Vanilla;
-
 fn main() {
-    // Set I
-    let lwe_dimension = LweDimension(768);
-    let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
-    let glwe_dimension = GlweDimension(1);
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-
-    let common_polynomial_size = PolynomialSize(256);
-    let glwe_ds_level = DecompositionLevelCount(3);
-    let glwe_ds_base_log = DecompositionBaseLog(4);
-
-    let pbs_base_log = DecompositionBaseLog(15);
-    let pbs_level = DecompositionLevelCount(2);
-    let cbs_base_log = DecompositionBaseLog(5);
-    let cbs_level = DecompositionLevelCount(3);
-
-    let auto_base_log = DecompositionBaseLog(7);
-    let auto_level = DecompositionLevelCount(7);
-    let ss_base_log = DecompositionBaseLog(8);
-    let ss_level = DecompositionLevelCount(6);
-    let log_lut_count = LutCountLog(2);
-
-    sample_aes_eval_err(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, glwe_ds_base_log, glwe_ds_level, common_polynomial_size, auto_base_log, auto_level, ss_base_log, ss_level, cbs_base_log, cbs_level, log_lut_count);
+    sample_aes_eval_err(*AES_SET_1);
 }
 
 #[allow(unused)]
 fn sample_aes_eval_err(
-    lwe_dimension: LweDimension,
-    glwe_dimension: GlweDimension,
-    polynomial_size: PolynomialSize,
-    lwe_modular_std_dev: StandardDev,
-    glwe_modular_std_dev: StandardDev,
-    pbs_base_log: DecompositionBaseLog,
-    pbs_level: DecompositionLevelCount,
-    glwe_ds_base_log: DecompositionBaseLog,
-    glwe_ds_level: DecompositionLevelCount,
-    common_polynomial_size: PolynomialSize,
-    auto_base_log: DecompositionBaseLog,
-    auto_level: DecompositionLevelCount,
-    ss_base_log: DecompositionBaseLog,
-    ss_level: DecompositionLevelCount,
-    cbs_base_log: DecompositionBaseLog,
-    cbs_level: DecompositionLevelCount,
-    log_lut_count: LutCountLog,
+    param: AesParam<u64>,
 ) {
-    println!(
-        "n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_cbs: 2^{}, l_cbs: {},
-B_glwe_ds: 2^{}, l_glwe_ds: {},
-B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
-        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, cbs_base_log.0, cbs_level.0,
-        glwe_ds_base_log.0, glwe_ds_level.0,
-        auto_base_log.0, auto_level.0, ss_base_log.0, ss_level.0, log_lut_count.0,
-    );
-    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
+    let lwe_dimension = param.lwe_dimension();
+    let glwe_dimension = param.glwe_dimension();
+    let polynomial_size = param.polynomial_size();
+    let lwe_modular_std_dev = param.lwe_modular_std_dev();
+    let glwe_modular_std_dev = param.glwe_modular_std_dev();
+    let pbs_base_log = param.pbs_base_log();
+    let pbs_level = param.pbs_level();
+    let glwe_ds_base_log = param.glwe_ds_base_log();
+    let glwe_ds_level = param.glwe_ds_level();
+    let common_polynomial_size = param.common_polynomial_size();
+    let fft_type_ds = param.fft_type_ds();
+    let auto_base_log = param.auto_base_log();
+    let auto_level = param.auto_level();
+    let fft_type_auto = param.fft_type_auto();
+    let ss_base_log = param.ss_base_log();
+    let ss_level = param.ss_level();
+    let cbs_base_log = param.cbs_base_log();
+    let cbs_level = param.cbs_level();
+    let log_lut_count = param.log_lut_count();
+    let ciphertext_modulus = param.ciphertext_modulus();
+
     let glwe_size = glwe_dimension.to_glwe_size();
+
+    println!(
+"n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_cbs: 2^{}, l_cbs: {},
+B_glwe_ds: 2^{}, l_glwe_ds: {}, fft_type_ds: {:?},
+B_auto: 2^{}, l_auto: {}, fft_type_auto: {:?},
+B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
+        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, cbs_base_log.0, cbs_level.0,
+        glwe_ds_base_log.0, glwe_ds_level.0, fft_type_ds,
+        auto_base_log.0, auto_level.0, fft_type_auto,
+        ss_base_log.0, ss_level.0, log_lut_count.0,
+    );
 
     // Set random generators and buffers
     let mut boxed_seeder = new_seeder();
@@ -90,7 +71,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
         glwe_ds_base_log,
         glwe_ds_level,
         common_polynomial_size,
-        DS_FFT_TYPE,
+        fft_type_ds,
         ciphertext_modulus,
         &mut secret_generator,
         &mut encryption_generator,
@@ -110,7 +91,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
     let auto_keys = gen_all_auto_keys(
         auto_base_log,
         auto_level,
-        AUTO_FFT_TYPE,
+        fft_type_auto,
         &glwe_sk,
         glwe_modular_std_dev,
         &mut encryption_generator,
@@ -120,7 +101,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
     let mut lwe_ks_err_list = vec![];
     let mut sub_err_list = vec![];
     let mut lin_err_list = vec![];
-    let mut total_max_err = Scalar::ZERO;
+    let mut total_max_err = 0u64;
 
     // ======== Plain ========
     let mut key = [0u8; BLOCKSIZE_IN_BYTE];
@@ -203,7 +184,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
         total_max_err = std::cmp::max(total_max_err, max_err);
 
         // SubBytes
-        he_sub_bytes_by_patched_wwllp_cbs(
+        he_sub_bytes_by_patched_wwlp_cbs(
             &he_state_ks,
             &mut he_state,
             fourier_bsk,
@@ -251,7 +232,7 @@ B_auto: 2^{}, l_auto: {}, B_ss: 2^{}, l_ss: {}, log_lut_count: {}\n",
 
 
     // SubBytes
-    he_sub_bytes_by_patched_wwllp_cbs(
+    he_sub_bytes_by_patched_wwlp_cbs(
         &he_state_ks,
         &mut he_state,
         fourier_bsk,
