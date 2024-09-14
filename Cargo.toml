@@ -17,6 +17,7 @@ lazy_static = "1.4"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
+concrete-fft = { version = "0.4.0", features = ["serde"] }
 
 [[test]]
 name = "fourier_poly_mult"
@@ -126,3 +127,4 @@ harness = false
 default = ["monothread"]
 monothread = []
 multithread = ["rayon"]
+nightly-avx512 = ["concrete-fft/nightly", "pulp/nightly"]
