@@ -1,11 +1,13 @@
 use tfhe::core_crypto::{
     algorithms::polynomial_algorithms::*,
     fft_impl::{
-        common::fast_pbs_modulus_switch, fft64::{
+        common::fast_pbs_modulus_switch,
+        fft64::{
             crypto::bootstrap::FourierLweBootstrapKeyView,
-            math::fft::FftView
-        }
-    }, prelude::*
+            math::fft::FftView,
+        },
+    },
+    prelude::*
 };
 use aligned_vec::CACHELINE_ALIGN;
 use dyn_stack::{PodStack, ReborrowMut};

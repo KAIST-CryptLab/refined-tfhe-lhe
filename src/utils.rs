@@ -271,6 +271,22 @@ pub fn glwe_ciphertext_add_monic_mul_assign<Scalar, LhsCont, RhsCont>(
     }
 }
 
+pub fn glwe_ciphertext_monic_monomial_mul<Scalar, LhsCont, RhsCont>(
+    glwe_lhs: &mut GlweCiphertext<LhsCont>,
+    glwe_rhs: &GlweCiphertext<RhsCont>,
+    monomial_degree: MonomialDegree,
+) where
+    Scalar: UnsignedInteger,
+    LhsCont: ContainerMut<Element=Scalar>,
+    RhsCont: Container<Element=Scalar>,
+{
+    for (mut poly_lhs, poly_rhs) in glwe_lhs.as_mut_polynomial_list().iter_mut()
+        .zip(glwe_rhs.as_polynomial_list().iter())
+    {
+        polynomial_wrapping_monic_monomial_mul(&mut poly_lhs, &poly_rhs, monomial_degree);
+    }
+}
+
 pub fn glwe_ciphertext_monic_monomial_mul_assign<Scalar, ContMut>(
     glwe: &mut GlweCiphertext<ContMut>,
     monomial_degree: MonomialDegree,
@@ -282,6 +298,23 @@ pub fn glwe_ciphertext_monic_monomial_mul_assign<Scalar, ContMut>(
         polynomial_wrapping_monic_monomial_mul_assign(&mut poly, monomial_degree);
     }
 }
+
+pub fn glwe_ciphertext_monic_monomial_div<Scalar, LhsCont, RhsCont>(
+    glwe_lhs: &mut GlweCiphertext<LhsCont>,
+    glwe_rhs: &GlweCiphertext<RhsCont>,
+    monomial_degree: MonomialDegree,
+) where
+    Scalar: UnsignedInteger,
+    LhsCont: ContainerMut<Element=Scalar>,
+    RhsCont: Container<Element=Scalar>,
+{
+    for (mut poly_lhs, poly_rhs) in glwe_lhs.as_mut_polynomial_list().iter_mut()
+        .zip(glwe_rhs.as_polynomial_list().iter())
+    {
+        polynomial_wrapping_monic_monomial_div(&mut poly_lhs, &poly_rhs, monomial_degree);
+    }
+}
+
 pub fn glwe_ciphertext_monic_monomial_div_assign<Scalar, ContMut>(
     glwe: &mut GlweCiphertext<ContMut>,
     monomial_degree: MonomialDegree,

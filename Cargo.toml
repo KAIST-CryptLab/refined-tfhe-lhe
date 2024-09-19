@@ -60,6 +60,10 @@ name = "lwe_to_glwe_with_dim_switch"
 harness = false
 
 [[test]]
+name = "wopbs"
+harness = false
+
+[[test]]
 name = "aes_ref"
 harness = false
 
