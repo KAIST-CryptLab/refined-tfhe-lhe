@@ -8,8 +8,8 @@ fn main() {
     // AES evaluation by patched WWL+ circuit bootstrapping
     let lwe_dimension = LweDimension(768);
     let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
-    let polynomial_size = PolynomialSize(1024);
-    let glwe_dimension = GlweDimension(2);
+    let polynomial_size = PolynomialSize(2048);
+    let glwe_dimension = GlweDimension(1);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
 
     let common_polynomial_size = PolynomialSize(256);
@@ -17,17 +17,17 @@ fn main() {
     let glwe_ds_level = DecompositionLevelCount(3);
     let glwe_ds_base_log = DecompositionBaseLog(4);
 
-    let pbs_base_log = DecompositionBaseLog(15);
-    let pbs_level = DecompositionLevelCount(2);
+    let pbs_base_log = DecompositionBaseLog(23);
+    let pbs_level = DecompositionLevelCount(1);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let ggsw_base_log = DecompositionBaseLog(5);
-    let ggsw_level = DecompositionLevelCount(3);
-    let auto_base_log = DecompositionBaseLog(7);
-    let auto_level = DecompositionLevelCount(7);
-    let auto_fft_type = FftType::Split16;
-    let ss_base_log = DecompositionBaseLog(8);
-    let ss_level = DecompositionLevelCount(6);
+    let ggsw_base_log = DecompositionBaseLog(3);
+    let ggsw_level = DecompositionLevelCount(4);
+    let auto_base_log = DecompositionBaseLog(13);
+    let auto_level = DecompositionLevelCount(3);
+    let auto_fft_type = FftType::Split(41);
+    let ss_base_log = DecompositionBaseLog(19);
+    let ss_level = DecompositionLevelCount(2);
     let log_lut_count = LutCountLog(2);
 
     test_aes_eval_by_patched_wwlp_cbs(
@@ -190,6 +190,18 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
+    let mut he_state_mult_by_2 = LweCiphertextList::new(
+        0u64,
+        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        ciphertext_modulus,
+    );
+    let mut he_state_mult_by_3 = LweCiphertextList::new(
+        0u64,
+        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        ciphertext_modulus,
+    );
     let mut he_state_ks = LweCiphertextList::new(
         0u64,
         lwe_sk_after_ks.lwe_dimension().to_lwe_size(),
@@ -237,9 +249,11 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
         // SubBytes
         let now = Instant::now();
-        he_sub_bytes_by_patched_wwlp_cbs(
+        he_sub_bytes_8_to_24_by_patched_wwlp_cbs(
             &he_state_ks,
             &mut he_state,
+            &mut he_state_mult_by_2,
+            &mut he_state_mult_by_3,
             fourier_bsk,
             &auto_keys,
             ss_key,
@@ -260,9 +274,15 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         let now = Instant::now();
         // ShiftRows
         he_shift_rows(&mut he_state);
+        he_shift_rows(&mut he_state_mult_by_2);
+        he_shift_rows(&mut he_state_mult_by_3);
 
         // MixColumns
-        he_mix_columns(&mut he_state);
+        he_mix_columns_precomp(
+            &mut he_state,
+            &he_state_mult_by_2,
+            &he_state_mult_by_3,
+        );
 
         // AddRoundKey
         he_add_round_key(&mut he_state, &he_round_keys[r]);
@@ -333,8 +353,17 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     }
     println!(" ... (max: {:.3})", (max_err as f64).log2());
 
-    let (_, max_err2) = get_he_state_error(&he_state, correct_output, &lwe_sk);
+    let (vec_out, _, max_err2) = get_he_state_and_error(&he_state, correct_output, &lwe_sk);
     println!("max: {:.2}", (max_err2 as f64).log2());
+
+    let plain_state = byte_mat_to_bit_array(correct_output);
+    for (out, correct) in vec_out.iter().zip(plain_state.iter()) {
+        let out = *out as u8;
+        if out != *correct {
+            println!("wrong!");
+        }
+        break;
+    }
 
     // Evaluation Time
     println!("\n---- Evaluation Time ----");
