@@ -190,6 +190,54 @@ impl Aes128Ref {
             }
         }
     }
+
+    pub fn get_keyed_sbox(&self, round: usize) -> [[u8; 256]; 16] {
+        let mut keyed_sbox = [[0u8; 256]; 16];
+        let round_key = self.get_round_keys()[round];
+
+        for (byte_idx, rk) in round_key.iter().enumerate() {
+            for x in 0..256 {
+                let x = x as u8;
+                let masked_input = x ^ rk;
+
+                keyed_sbox[byte_idx][x as usize] = AES128_SBOX[masked_input as usize];
+            }
+        }
+
+        keyed_sbox
+    }
+
+    pub fn get_keyed_sbox_mult_by_2(&self, round: usize) -> [[u8; 256]; 16] {
+        let mut keyed_sbox = [[0u8; 256]; 16];
+        let round_key = self.get_round_keys()[round];
+
+        for (byte_idx, rk) in round_key.iter().enumerate() {
+            for x in 0..256 {
+                let x = x as u8;
+                let masked_input = x ^ rk;
+
+                keyed_sbox[byte_idx][x as usize] = AES128_SBOX_MULT_BY_2[masked_input as usize];
+            }
+        }
+
+        keyed_sbox
+    }
+
+    pub fn get_keyed_sbox_mult_by_3(&self, round: usize) -> [[u8; 256]; 16] {
+        let mut keyed_sbox = [[0u8; 256]; 16];
+        let round_key = self.get_round_keys()[round];
+
+        for (byte_idx, rk) in round_key.iter().enumerate() {
+            for x in 0..256 {
+                let x = x as u8;
+                let masked_input = x ^ rk;
+
+                keyed_sbox[byte_idx][x as usize] = AES128_SBOX_MULT_BY_3[masked_input as usize];
+            }
+        }
+
+        keyed_sbox
+    }
 }
 
 pub fn byte_array_to_mat(input: StateByteArray) -> StateByteMat {
@@ -230,7 +278,7 @@ pub fn byte_mat_to_bit_array(input: StateByteMat) -> StateBitArray {
     byte_array_to_bit_array(byte_mat_to_array(input))
 }
 
-fn mult_by_two(a: u8) -> u8 {
+pub fn mult_by_two(a: u8) -> u8 {
     if a & 0x80 != 0 {
         ((a << 1) & 0xFF) ^ 0x1B
     } else {

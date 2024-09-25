@@ -72,6 +72,10 @@ name = "aes_eval"
 harness = false
 
 [[test]]
+name = "aes_eval_half_cbs"
+harness = false
+
+[[test]]
 name = "sample_fourier_poly_mult_err"
 harness = false
 

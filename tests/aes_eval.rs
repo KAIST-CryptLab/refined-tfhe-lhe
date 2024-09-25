@@ -299,6 +299,9 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
             print!(" {bit_err:>2}");
         }
         println!(" ... (max: {:.3})", (max_err as f64).log2());
+
+        let cur_time = time_sub_bytes + time_linear + time_lwe_ks;
+        println!("  - Latency: {:.3} ms", cur_time.as_micros() as f64 / 1000f64);
     }
 
     println!("Final Round");
