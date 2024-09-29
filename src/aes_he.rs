@@ -80,12 +80,16 @@ pub fn known_rotate_keyed_lut_for_half_cbs<Scalar, AccCont, OutputCont>(
             let bit_idx = i % BYTESIZE;
 
             let keyed_acc_list = vec_keyed_sbox_acc_list.get(byte_idx).unwrap();
-            for keyed_acc in keyed_acc_list.iter() {
-                let lut_idx = bit_idx % num_par_lut;
-                let deg = lut_idx * (1 << BYTESIZE) + input_cleartext[byte_idx] as usize;
 
-                extract_lwe_sample_from_glwe_ciphertext(&keyed_acc, &mut lwe_bit, MonomialDegree(deg));
-            }
+            let acc_idx = bit_idx / num_par_lut;
+            let lut_idx = bit_idx % num_par_lut;
+            let deg = lut_idx * (1 << BYTESIZE) + input_cleartext[byte_idx] as usize;
+
+            extract_lwe_sample_from_glwe_ciphertext(
+                &keyed_acc_list.get(acc_idx),
+                &mut lwe_bit,
+                MonomialDegree(deg),
+            );
         }
     }
 }

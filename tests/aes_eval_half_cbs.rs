@@ -8,8 +8,8 @@ fn main() {
     // AES evaluation by patched WWL+ circuit bootstrapping
     let lwe_dimension = LweDimension(768);
     let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
+    let polynomial_size = PolynomialSize(1024);
+    let glwe_dimension = GlweDimension(2);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
 
     let common_polynomial_size = PolynomialSize(256);
@@ -21,14 +21,14 @@ fn main() {
     let pbs_level = DecompositionLevelCount(1);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let ggsw_base_log = DecompositionBaseLog(3);
-    let ggsw_level = DecompositionLevelCount(4);
+    let ggsw_base_log = DecompositionBaseLog(2);
+    let ggsw_level = DecompositionLevelCount(7);
     let auto_base_log = DecompositionBaseLog(13);
     let auto_level = DecompositionLevelCount(3);
     let auto_fft_type = FftType::Split(41);
     let ss_base_log = DecompositionBaseLog(19);
     let ss_level = DecompositionLevelCount(2);
-    let log_lut_count = LutCountLog(2);
+    let log_lut_count = LutCountLog(3);
 
     let half_cbs_auto_base_log = DecompositionBaseLog(6);
     let half_cbs_auto_level = DecompositionLevelCount(8);
