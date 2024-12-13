@@ -120,7 +120,11 @@ name = "bench_lwes_to_glwe"
 harness = false
 
 [[bench]]
-name = "bench_cbs"
+name = "bench_bitwise_cbs"
+harness = false
+
+[[bench]]
+name = "bench_hp_lhe"
 harness = false
 
 [[bench]]
@@ -133,10 +137,6 @@ harness = false
 
 [[bench]]
 name = "bench_aes_others"
-harness = false
-
-[[bench]]
-name = "bench_wopbs"
 harness = false
 
 [[bench]]
