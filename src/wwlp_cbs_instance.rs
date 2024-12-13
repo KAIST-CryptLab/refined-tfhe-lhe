@@ -4,6 +4,23 @@ use tfhe::core_crypto::prelude::*;
 use lazy_static::lazy_static;
 
 lazy_static! {
+    pub static ref CBS_WOPBS_1_1: CBSParam<u64> = CBSParam::new(
+        LweDimension(653),
+        StandardDev(0.00003604499526942373),
+        PolynomialSize(2048),
+        GlweDimension(1),
+        StandardDev(0.00000000000000029403601535432533),
+        DecompositionBaseLog(15),
+        DecompositionLevelCount(2),
+        DecompositionBaseLog(5),
+        DecompositionLevelCount(2),
+        DecompositionBaseLog(15),
+        DecompositionLevelCount(2),
+        DecompositionBaseLog(5),
+        DecompositionLevelCount(3),
+        CiphertextModulus::<u64>::new_native(),
+    );
+
     pub static ref CBS_WOPBS_2_2: CBSParam<u64> = CBSParam::new(
         LweDimension(769), // lwe_dimension
         StandardDev(0.0000043131554647504185), // lwe_modular_std_dev
@@ -126,16 +143,26 @@ lazy_static! {
         DecompositionBaseLog(15), // glwe_ds_to_large_base_log
         DecompositionLevelCount(3), // glwe_ds_to_large_level
         FftType::Split(44), // fft_type_to_large
-        DecompositionBaseLog(6), // auto_base_log
-        DecompositionLevelCount(10), // auto_level
-        FftType::Split(36), // fft_type_auto
-        DecompositionBaseLog(5), // glwe_ds_from_large_base_log
-        DecompositionLevelCount(10), // glwe_ds_from_large_level
-        FftType::Split(35), // fft_type_from_large
-        DecompositionBaseLog(6), // ss_base_log
-        DecompositionLevelCount(9), // ss_level
-        DecompositionBaseLog(4), // cbs_base_log
-        DecompositionLevelCount(6), // cbs_level
+        // DecompositionBaseLog(6), // auto_base_log
+        // DecompositionLevelCount(10), // auto_level
+        // FftType::Split(36), // fft_type_auto
+        DecompositionBaseLog(12), // auto_base_log
+        DecompositionLevelCount(4), // auto_level
+        FftType::Split(42), // fft_type_auto
+        // DecompositionBaseLog(5), // glwe_ds_from_large_base_log
+        // DecompositionLevelCount(10), // glwe_ds_from_large_level
+        // FftType::Split(35), // fft_type_from_large
+        DecompositionBaseLog(10), // glwe_ds_from_large_base_log
+        DecompositionLevelCount(4), // glwe_ds_from_large_level
+        FftType::Split(40), // fft_type_from_large
+        // DecompositionBaseLog(6), // ss_base_log
+        // DecompositionLevelCount(9), // ss_level
+        DecompositionBaseLog(10), // ss_base_log
+        DecompositionLevelCount(4), // ss_level
+        // DecompositionBaseLog(4), // cbs_base_log
+        // DecompositionLevelCount(6), // cbs_level
+        DecompositionBaseLog(3), // cbs_base_log
+        DecompositionLevelCount(8), // cbs_level
         LutCountLog(3), // log_lut_count
         CiphertextModulus::<u64>::new_native(), // ciphertext_modulus
     );

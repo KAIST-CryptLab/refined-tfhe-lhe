@@ -17,6 +17,8 @@ pub mod auto_conv_params;
 pub mod auto_conv_instance;
 pub mod wwlp_cbs_params;
 pub mod wwlp_cbs_instance;
+pub mod wopbs_params;
+pub mod wopbs_instance;
 pub mod aes_params;
 pub mod aes_instances;
 

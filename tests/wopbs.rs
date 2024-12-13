@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use auto_base_conv::{
     gen_all_auto_keys,
     generate_scheme_switching_key,
@@ -11,24 +13,89 @@ use tfhe::core_crypto::prelude::*;
 type Scalar = u64;
 
 fn main() {
-    let lwe_dimension = LweDimension(768);
-    let lwe_modular_std_dev = StandardDev(0.000006692125069956277);
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let pbs_base_log = DecompositionBaseLog(15);
-    let pbs_level = DecompositionLevelCount(2);
-    let ks_base_log = DecompositionBaseLog(3);
-    let ks_level = DecompositionLevelCount(5);
-    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+    // let lwe_dimension = LweDimension(768);
+    // let lwe_modular_std_dev = StandardDev(0.000006692125069956277);
+    // let polynomial_size = PolynomialSize(2048);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    // let pbs_base_log = DecompositionBaseLog(15);
+    // let pbs_level = DecompositionLevelCount(2);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ks_level = DecompositionLevelCount(5);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let cbs_base_log = DecompositionBaseLog(3);
-    let cbs_level = DecompositionLevelCount(5);
-    let auto_base_log = DecompositionBaseLog(12);
+    // let cbs_base_log = DecompositionBaseLog(3);
+    // let cbs_level = DecompositionLevelCount(5);
+    // let auto_base_log = DecompositionBaseLog(12);
+    // let auto_level = DecompositionLevelCount(3);
+    // let fft_type = FftType::Split16;
+    // let ss_base_log = DecompositionBaseLog(9);
+    // let ss_level = DecompositionLevelCount(4);
+    // let log_lut_count = LutCountLog(2);
+
+    // Common parameters for CMUXi
+    // let lwe_dimension = LweDimension(571);
+    // let lwe_modular_std_dev = StandardDev(2.0f64.powf(-12.32));
+    // let polynomial_size = PolynomialSize(2048);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    // let ks_base_log = DecompositionBaseLog(2);
+    // let ks_level = DecompositionLevelCount(5);
+    // let log_lut_count = LutCountLog(2);
+
+    // CMUX1
+    // let pbs_base_log = DecompositionBaseLog(23);
+    // let pbs_level = DecompositionLevelCount(1);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+    // let auto_base_log = DecompositionBaseLog(13);
+    // let auto_level = DecompositionLevelCount(3);
+    // let fft_type = FftType::Split(42);
+    // let ss_base_log = DecompositionBaseLog(24);
+    // let ss_level = DecompositionLevelCount(1);
+    // let cbs_base_log = DecompositionBaseLog(3);
+    // let cbs_level = DecompositionLevelCount(4);
+
+    // CMUX2
+    // let pbs_base_log = DecompositionBaseLog(15);
+    // let pbs_level = DecompositionLevelCount(2);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+    // let auto_base_log = DecompositionBaseLog(13);
+    // let auto_level = DecompositionLevelCount(3);
+    // let fft_type = FftType::Split(42);
+    // let ss_base_log = DecompositionBaseLog(16);
+    // let ss_level = DecompositionLevelCount(2);
+    // let cbs_base_log = DecompositionBaseLog(4);
+    // let cbs_level = DecompositionLevelCount(4);
+
+    // CMUX3
+    // let pbs_base_log = DecompositionBaseLog(15);
+    // let pbs_level = DecompositionLevelCount(2);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+    // let auto_base_log = DecompositionBaseLog(8);
+    // let auto_level = DecompositionLevelCount(6);
+    // let fft_type = FftType::Split(37);
+    // let ss_base_log = DecompositionBaseLog(16);
+    // let ss_level = DecompositionLevelCount(2);
+    // let cbs_base_log = DecompositionBaseLog(5);
+    // let cbs_level = DecompositionLevelCount(4);
+
+    let lwe_dimension = LweDimension(653);
+    let glwe_dimension = GlweDimension(1);
+    let polynomial_size = PolynomialSize(2048);
+    let lwe_modular_std_dev = StandardDev(0.00003604499526942373);
+    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    let pbs_base_log = DecompositionBaseLog(23);
+    let pbs_level = DecompositionLevelCount(1);
+    let auto_base_log = DecompositionBaseLog(13);
     let auto_level = DecompositionLevelCount(3);
-    let fft_type = FftType::Split16;
-    let ss_base_log = DecompositionBaseLog(9);
-    let ss_level = DecompositionLevelCount(4);
+    let fft_type = FftType::Split(42);
+    let ss_base_log = DecompositionBaseLog(16);
+    let ss_level = DecompositionLevelCount(2);
+    let ks_level = DecompositionLevelCount(2);
+    let ks_base_log = DecompositionBaseLog(5);
+    let cbs_level = DecompositionLevelCount(3);
+    let cbs_base_log = DecompositionBaseLog(5);
+    let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
     let log_lut_count = LutCountLog(2);
 
     let glwe_size = glwe_dimension.to_glwe_size();
@@ -94,9 +161,10 @@ fn main() {
     let ss_key = ss_key.as_view();
 
     // Set plaintext and encrypt
-    let modulus_bit = 6;
+    let modulus_bit = 2;
     let log_delta = Scalar::BITS - modulus_bit;
     let delta = Scalar::ONE << log_delta;
+    let num_extract_bits = 2usize;
 
     let mut ggsw_list_out = GgswCiphertextList::new(0u64, glwe_size, polynomial_size, cbs_base_log, cbs_level, GgswCiphertextCount(modulus_bit as usize), CiphertextModulus::new_native());
 
@@ -115,12 +183,27 @@ fn main() {
         cbs_level,
     );
 
-    let num_extract_bits = 3usize;
     println!("num_extract_bits: {num_extract_bits}");
     for msg in 0..(1 << modulus_bit) {
         let pt = Plaintext(msg * delta);
         let lwe_in = allocate_and_encrypt_new_lwe_ciphertext(&lwe_secret_key, pt, glwe_modular_std_dev, ciphertext_modulus, &mut encryption_generator);
 
+        if msg == 0u64 {
+            for _ in 0..100 {
+                improved_wopbs_multi_bits(
+                    &lwe_in,
+                    &mut ggsw_list_out,
+                    &mut fourier_ggsw_list_out,
+                    num_extract_bits,
+                    &ksk,
+                    fourier_bsk,
+                    &auto_keys,
+                    ss_key,
+                    log_lut_count,
+                );
+            }
+        }
+        let now = Instant::now();
         improved_wopbs_multi_bits(
             &lwe_in,
             &mut ggsw_list_out,
@@ -132,7 +215,8 @@ fn main() {
             ss_key,
             log_lut_count,
         );
-        println!();
+        let time = now.elapsed();
+        println!("Time: {} ms", (time.as_micros() as f64) / 1000f64);
 
         println!("msg: {msg} = 0b{msg:b}");
         for (bit_idx, ggsw) in ggsw_list_out.iter().enumerate() {
@@ -148,5 +232,17 @@ fn main() {
             println!("[{bit_idx}] {correct_val} | {:.3} bits", (err as f64).log2());
         }
         println!();
+
     }
+
+    let ggsw = fourier_ggsw_list_out.as_view().into_ggsw_iter().next().unwrap();
+    let mut ct0 = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+    let mut ct1 = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+
+    let now = Instant::now();
+    for _ in 0..1000 {
+        cmux_assign(&mut ct0, &mut ct1, &ggsw);
+    }
+    let time = now.elapsed();
+    println!("Time: {} ms", (time.as_micros() as f64) / ((1000 * 1000) as f64));
 }

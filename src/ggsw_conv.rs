@@ -10,7 +10,7 @@ use tfhe::core_crypto::{
     },
     prelude::{polynomial_algorithms::*, *},
 };
-use crate::{automorphism::*, glwe_conv::*, lwe_preprocessing_assign, pbs::*, utils::*};
+use crate::{automorphism::*, glwe_conv::*, glwe_preprocessing_assign, keyswitch_glwe_ciphertext, lwe_preprocessing_assign, pbs::*, utils::*, FourierGlweKeyswitchKey};
 
 pub fn generate_scheme_switching_key<Scalar, G>(
     glwe_secret_key: &GlweSecretKeyOwned<Scalar>,
@@ -411,7 +411,7 @@ where
     fourier_ggsw
 }
 
-fn blind_rotate_for_msb<Scalar, InputCont, OutputCont>(
+pub fn blind_rotate_for_msb<Scalar, InputCont, OutputCont>(
     lwe_in: &LweCiphertext<InputCont>,
     glev_out: &mut GlweCiphertextList<OutputCont>,
     fourier_bsk: FourierLweBootstrapKeyView,
@@ -494,7 +494,7 @@ where
     }
 }
 
-fn convert_to_ggsw_after_blind_rotate<Scalar, InputCont, OutputCont>(
+pub fn convert_to_ggsw_after_blind_rotate<Scalar, InputCont, OutputCont>(
     glev_in: &GlweCiphertextList<InputCont>,
     ggsw_out: &mut GgswCiphertext<OutputCont>,
     bit_idx_from_msb: usize,
@@ -562,70 +562,81 @@ where
     switch_scheme(&glev_out, ggsw_out, ss_key);
 }
 
-/*
-pub fn improved_wopbs<Scalar, InputCont, OutputCont, KeyCont>(
-    lwe_in: &LweCiphertext<InputCont>,
-    ggsw_list_out: &mut GgswCiphertextList<OutputCont>,
-    ksk: &LweKeyswitchKey<KeyCont>,
-    fourier_bsk: FourierLweBootstrapKeyView,
+
+pub fn convert_to_ggsw_after_blind_rotate_high_prec<Scalar, InputCont, OutputCont, KeyCont>(
+    glev_in: &GlweCiphertextList<InputCont>,
+    ggsw_out: &mut GgswCiphertext<OutputCont>,
+    bit_idx_from_msb: usize,
+    glwe_ksk_to_large: &FourierGlweKeyswitchKey<KeyCont>,
+    glwe_ksk_from_large: &FourierGlweKeyswitchKey<KeyCont>,
     auto_keys: &HashMap<usize, AutomorphKey<ABox<[c64]>>>,
     ss_key: FourierGgswCiphertextListView,
-    log_lut_count: LutCountLog,
+    ciphertext_modulus: CiphertextModulus<Scalar>,
 )
 where
-    Scalar: UnsignedTorus + CastInto<usize>,
+    Scalar: UnsignedTorus,
     InputCont: Container<Element=Scalar>,
     OutputCont: ContainerMut<Element=Scalar>,
-    KeyCont: Container<Element=Scalar>,
+    KeyCont: Container<Element=c64>,
 {
-    assert_eq!(lwe_in.ciphertext_modulus(), ggsw_list_out.ciphertext_modulus());
-    assert_eq!(lwe_in.ciphertext_modulus(), ksk.ciphertext_modulus());
-    assert!(lwe_in.ciphertext_modulus().is_native_modulus());
+    assert!(bit_idx_from_msb <= 2, "Multi-bit extraction is supported for at most 3 bits");
 
-    assert_eq!(lwe_in.lwe_size(), ksk.input_key_lwe_dimension().to_lwe_size());
-    assert_eq!(ksk.output_key_lwe_dimension(), fourier_bsk.input_lwe_dimension());
-    assert_eq!(fourier_bsk.polynomial_size(), ggsw_list_out.polynomial_size());
-    assert_eq!(fourier_bsk.glwe_size(), ggsw_list_out.glwe_size());
+    assert_eq!(glev_in.polynomial_size(), ggsw_out.polynomial_size());
+    assert_eq!(glev_in.glwe_size(), ggsw_out.glwe_size());
+    assert_eq!(glev_in.polynomial_size(), ss_key.polynomial_size());
+    assert_eq!(glev_in.glwe_size(), ss_key.glwe_size());
 
-    let polynomial_size = ggsw_list_out.polynomial_size();
-    let glwe_size = ggsw_list_out.glwe_size();
-    let ciphertext_modulus = lwe_in.ciphertext_modulus();
-    let log_modulus = ggsw_list_out.ggsw_ciphertext_count().0;
+    let glwe_size = glev_in.glwe_size();
+    let polynomial_size = glev_in.polynomial_size();
 
-    let cbs_base_log = ggsw_list_out.decomposition_base_log();
-    let cbs_level = ggsw_list_out.decomposition_level_count();
+    let cbs_level = ggsw_out.decomposition_level_count();
+    let cbs_base_log = ggsw_out.decomposition_base_log();
 
-    let mut buf = LweCiphertext::new(Scalar::ZERO, lwe_in.lwe_size(), ciphertext_modulus);
-    buf.as_mut().clone_from_slice(lwe_in.as_ref());
+    let large_lwe_dimension = LweDimension(glwe_size.to_glwe_dimension().0 * polynomial_size.0);
+    let mut buf_lwe = LweCiphertext::new(Scalar::ZERO, large_lwe_dimension.to_lwe_size(), ciphertext_modulus);
+    let mut buf_large_glwe = GlweCiphertext::new(Scalar::ZERO, glwe_ksk_to_large.output_glwe_size(), polynomial_size, ciphertext_modulus);
 
-    for (bit_idx, mut ggsw_out) in ggsw_list_out.iter_mut().enumerate() {
-        let mut lwe_extract = LweCiphertext::new(Scalar::ZERO, buf.lwe_size(), buf.ciphertext_modulus());
-        lwe_ciphertext_cleartext_mul(&mut lwe_extract, &buf, Cleartext(Scalar::ONE << (log_modulus - bit_idx - 1)));
+    let mut glev_out = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(cbs_level.0), ciphertext_modulus);
+    for (k, (mut glwe_out, glwe_in)) in glev_out.iter_mut().zip(glev_in.iter()).enumerate() {
+        let cur_level = k + 1;
+        let log_scale = Scalar::BITS - cur_level * cbs_base_log.0;
 
-        let mut lwe_extract_ks = LweCiphertext::new(Scalar::ZERO, ksk.output_lwe_size(), ciphertext_modulus);
-        keyswitch_lwe_ciphertext(ksk, &lwe_extract, &mut lwe_extract_ks);
+        if bit_idx_from_msb == 0 {
+            extract_lwe_sample_from_glwe_ciphertext(&glwe_in, &mut buf_lwe, MonomialDegree(0));
+            lwe_ciphertext_plaintext_add_assign(&mut buf_lwe, Plaintext(Scalar::ONE << (log_scale - 1)));
+        } else if bit_idx_from_msb == 1 {
+            glwe_ciphertext_monic_monomial_mul(&mut glwe_out, &glwe_in, MonomialDegree(polynomial_size.0 / 2));
 
-        let mut lev = LweCiphertextList::new(Scalar::ZERO, lwe_in.lwe_size(), LweCiphertextCount(cbs_level.0), ciphertext_modulus);
-        lwe_msb_bit_to_lev(&lwe_extract_ks, &mut lev, fourier_bsk, cbs_base_log, cbs_level, log_lut_count);
+            extract_lwe_sample_from_glwe_ciphertext(&glwe_out, &mut buf_lwe, MonomialDegree(0));
+            lwe_ciphertext_opposite_assign(&mut buf_lwe);
+            lwe_ciphertext_plaintext_add_assign(&mut buf_lwe, Plaintext(Scalar::ONE << (log_scale - 1)));
+        } else { // bit_idx_from_msb == 2
+            glwe_ciphertext_monic_monomial_mul(&mut glwe_out, &glwe_in, MonomialDegree(polynomial_size.0 / 4));
 
-        let mut lwe_bit_refreshed = LweCiphertext::new(Scalar::ZERO, lwe_in.lwe_size(), ciphertext_modulus);
-        lwe_bit_refreshed.as_mut().clone_from_slice(lev.get(0).as_ref());
-        lwe_ciphertext_cleartext_mul_assign(&mut lwe_bit_refreshed, Cleartext(Scalar::ONE << (cbs_base_log.0 - log_modulus + bit_idx)));
+            let mut buf_glwe1 = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
+            let mut buf_glwe2 = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
 
-        lwe_ciphertext_sub_assign(&mut buf, &lwe_bit_refreshed);
+            glwe_ciphertext_monic_monomial_mul(&mut buf_glwe1, &glwe_out, MonomialDegree(polynomial_size.0 / 4));
+            glwe_ciphertext_monic_monomial_mul(&mut buf_glwe2, &glwe_out, MonomialDegree(polynomial_size.0 / 2));
 
-        let mut glev = GlweCiphertextList::new(Scalar::ZERO, glwe_size, polynomial_size, GlweCiphertextCount(cbs_level.0), ciphertext_modulus);
+            glwe_ciphertext_sub_assign(&mut glwe_out, &buf_glwe1);
+            glwe_ciphertext_add_assign(&mut glwe_out, &buf_glwe2);
 
-        let mut buf_lwe = LweCiphertext::new(Scalar::ZERO, lev.lwe_size(), ciphertext_modulus);
-        for (lwe, mut glwe) in lev.iter().zip(glev.iter_mut()) {
-            lwe_preprocessing(&lwe, &mut buf_lwe, polynomial_size);
-            convert_lwe_to_glwe_const(&buf_lwe, &mut glwe);
-            trace_assign(&mut glwe, &auto_keys);
+            extract_lwe_sample_from_glwe_ciphertext(&glwe_out, &mut buf_lwe, MonomialDegree(0));
+            lwe_ciphertext_opposite_assign(&mut buf_lwe);
+            lwe_ciphertext_plaintext_add_assign(&mut buf_lwe, Plaintext(Scalar::ONE << (log_scale - 1)));
         }
-        switch_scheme(&glev, &mut ggsw_out, ss_key);
+
+        convert_lwe_to_glwe_const(&buf_lwe, &mut glwe_out);
+        keyswitch_glwe_ciphertext(&glwe_ksk_to_large, &glwe_out, &mut buf_large_glwe);
+        glwe_preprocessing_assign(&mut buf_large_glwe);
+        trace_assign(&mut buf_large_glwe, &auto_keys);
+        keyswitch_glwe_ciphertext(&glwe_ksk_from_large, &buf_large_glwe, &mut glwe_out);
     }
+
+    switch_scheme(&glev_out, ggsw_out, ss_key);
 }
-*/
+
 
 pub fn improved_wopbs_multi_bits<Scalar, InputCont, OutputCont, FourierCont, KeyCont>(
     lwe_in: &LweCiphertext<InputCont>,
@@ -708,7 +719,6 @@ where
         let mut ct1 = GlweCiphertext::new(Scalar::ZERO, glwe_size, polynomial_size, ciphertext_modulus);
         glwe_ciphertext_clone_from(&mut ct0, &acc_id);
 
-        glwe_ciphertext_clone_from(&mut ct0, &acc_id);
         for i in 0..num_extract_bits {
             let mut ggsw = ggsw_chunk.get_mut(i);
             convert_to_ggsw_after_blind_rotate(
