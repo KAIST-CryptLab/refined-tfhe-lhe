@@ -2,22 +2,22 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{
-    aes_instances::*, automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, generate_vec_keyed_lut_accumulator, get_he_state_error, he_add_round_key, he_mix_columns_precomp, he_shift_rows, he_sub_bytes_8_to_24_by_patched_wwlp_cbs, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut, Aes128Ref, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
+    aes_instances::*, automorphism::gen_all_auto_keys, blind_rotate_keyed_sboxes, byte_array_to_mat, convert_lev_state_to_ggsw, generate_scheme_switching_key, generate_vec_keyed_lut_accumulator, generate_vec_keyed_lut_glev, get_he_state_error, he_add_round_key, he_mix_columns_precomp, he_shift_rows, he_sub_bytes_8_to_24_by_patched_wwlp_cbs, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut_for_half_cbs, lev_mix_columns_precomp, lev_shift_rows, Aes128Ref, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 
 criterion_group!(
     name = benches;
     config = Criterion::default().sample_size(1000);
     targets =
-        criterion_benchmark_aes,
+        criterion_benchmark_aes_half_cbs,
 );
 criterion_main!(benches);
 
-fn criterion_benchmark_aes(c: &mut Criterion) {
+fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes evaluation by patched WWL+ circuit bootstrapping");
 
     let param_list = [
-        (*AES_TIGHT, "tight"),
+        (*AES_HALF_CBS, "HalfCBS"),
     ];
 
     for (param, id) in param_list.iter() {
@@ -41,6 +41,13 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
         let cbs_level = param.cbs_level();
         let log_lut_count = param.log_lut_count();
         let ciphertext_modulus = param.ciphertext_modulus();
+        let half_cbs_auto_base_log = param.half_cbs_auto_base_log();
+        let half_cbs_auto_level = param.half_cbs_auto_level();
+        let half_cbs_fft_type_auto = param.half_cbs_fft_type_auto();
+        let half_cbs_ss_base_log = param.half_cbs_ss_base_log();
+        let half_cbs_ss_level = param.half_cbs_ss_level();
+        let half_cbs_base_log = param.half_cbs_base_log();
+        let half_cbs_level = param.half_cbs_level();
 
         // Set random generators and buffers
         let mut boxed_seeder = new_seeder();
@@ -92,6 +99,28 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
             glwe_modular_std_dev,
             &mut encryption_generator,
         );
+
+        let half_cbs_auto_keys = gen_all_auto_keys(
+            half_cbs_auto_base_log,
+            half_cbs_auto_level,
+            half_cbs_fft_type_auto,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            &mut encryption_generator,
+        );
+
+        let half_cbs_ss_key = generate_scheme_switching_key(
+            &glwe_sk,
+            half_cbs_ss_base_log,
+            half_cbs_ss_level,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let half_cbs_ss_key = half_cbs_ss_key.as_view();
+
+        let glwe_size = glwe_sk.glwe_dimension().to_glwe_size();
+        let large_lwe_size = lwe_sk.lwe_dimension().to_lwe_size();
 
         // ======== Plain ========
         let mut rng = rand::thread_rng();
@@ -162,24 +191,68 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
             ciphertext_modulus,
         );
 
-        let vec_keyed_sbox_round_1 = generate_vec_keyed_lut_accumulator(
+        let mut lev_state = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
+        let mut lev_state_mult_by_2 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
+        let mut lev_state_mult_by_3 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
+
+        for _ in 0..BLOCKSIZE_IN_BIT {
+            lev_state.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+            lev_state_mult_by_2.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+            lev_state_mult_by_3.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+        }
+
+        for (bit_idx, mut he_bit) in he_state.iter_mut().enumerate() {
+            let byte_idx = bit_idx / 8;
+            let pt = (message[byte_idx] & (1 << bit_idx)) >> bit_idx;
+            *he_bit.get_mut_body().data += (pt as u64) << 63;
+        }
+
+        let vec_keyed_sbox_glev_round_1 = generate_vec_keyed_lut_glev(
             aes.get_keyed_sbox(0),
-            u64::BITS as usize - 1,
+            half_cbs_base_log,
+            half_cbs_level,
             &glwe_sk,
             glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
-        let vec_keyed_sbox_round_1_mult_by_2 = generate_vec_keyed_lut_accumulator(
+        let vec_keyed_sbox_mult_by_2_glev_round_1 = generate_vec_keyed_lut_glev(
             aes.get_keyed_sbox_mult_by_2(0),
+            half_cbs_base_log,
+            half_cbs_level,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let vec_keyed_sbox_mult_by_3_glev_round_1 = generate_vec_keyed_lut_glev(
+            aes.get_keyed_sbox_mult_by_3(0),
+            half_cbs_base_log,
+            half_cbs_level,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+
+        let vec_keyed_sbox_acc_round_2 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox(1),
             u64::BITS as usize - 1,
             &glwe_sk,
             glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
-        let vec_keyed_sbox_round_1_mult_by_3 = generate_vec_keyed_lut_accumulator(
-            aes.get_keyed_sbox_mult_by_3(0),
+        let vec_keyed_sbox_mult_by_2_acc_round_2 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox_mult_by_2(1),
+            u64::BITS as usize - 1,
+            &glwe_sk,
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let vec_keyed_sbox_mult_by_3_acc_round_2 = generate_vec_keyed_lut_accumulator(
+            aes.get_keyed_sbox_mult_by_3(1),
             u64::BITS as usize - 1,
             &glwe_sk,
             glwe_modular_std_dev,
@@ -196,60 +269,102 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
         }
 
         { // r = 1
-            // Keyed LUT
+            // Keyed-LUT
             group.bench_function(
                 BenchmarkId::new(
                     format!("Round 1 Keyed-LUT"),
                     id,
                 ),
                 |b| b.iter(|| {
-                    known_rotate_keyed_lut(
+                    known_rotate_keyed_lut_for_half_cbs(
                         black_box(message),
-                        black_box(&vec_keyed_sbox_round_1),
+                        black_box(&vec_keyed_sbox_glev_round_1),
+                        black_box(&mut lev_state),
+                    );
+                    known_rotate_keyed_lut_for_half_cbs(
+                        black_box(message),
+                        black_box(&vec_keyed_sbox_mult_by_2_glev_round_1),
+                        black_box(&mut lev_state_mult_by_2),
+                    );
+                    known_rotate_keyed_lut_for_half_cbs(
+                        black_box(message),
+                        black_box(&vec_keyed_sbox_mult_by_3_glev_round_1),
+                        black_box(&mut lev_state_mult_by_3),
+                    );
+                }),
+            );
+
+            // Linear
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round 1 ShiftRows and MixColumns"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    lev_shift_rows(black_box(&mut lev_state));
+                    lev_shift_rows(black_box(&mut lev_state_mult_by_2));
+                    lev_shift_rows(black_box(&mut lev_state_mult_by_3));
+                    lev_mix_columns_precomp(
+                        black_box(&mut lev_state),
+                        black_box(&lev_state_mult_by_2),
+                        black_box(&lev_state_mult_by_3),
+                    );
+                }),
+            );
+        }
+
+        { // r = 2
+            // Keyed LUT by HalfCBS
+            group.bench_function(
+                BenchmarkId::new(
+                    format!("Round 2 HalfCBS Keyed-LUT"),
+                    id,
+                ),
+                |b| b.iter(|| {
+                    let mut ggsw_state = GgswCiphertextList::new(0u64, glwe_size, polynomial_size, half_cbs_base_log, half_cbs_level, GgswCiphertextCount(BLOCKSIZE_IN_BIT), ciphertext_modulus);
+
+                    convert_lev_state_to_ggsw(
+                        black_box(&lev_state),
+                        black_box(&mut ggsw_state),
+                        black_box(&half_cbs_auto_keys),
+                        black_box(half_cbs_ss_key),
+                    );
+
+                    blind_rotate_keyed_sboxes(
+                        black_box(&ggsw_state),
+                        black_box(&vec_keyed_sbox_acc_round_2),
+                        black_box(&vec_keyed_sbox_mult_by_2_acc_round_2),
+                        black_box(&vec_keyed_sbox_mult_by_3_acc_round_2),
                         black_box(&mut he_state),
-                    );
-                    known_rotate_keyed_lut(
-                        black_box(message),
-                        black_box(&vec_keyed_sbox_round_1_mult_by_2),
                         black_box(&mut he_state_mult_by_2),
-                    );
-                    known_rotate_keyed_lut(
-                        black_box(message),
-                        black_box(&vec_keyed_sbox_round_1_mult_by_3),
                         black_box(&mut he_state_mult_by_3),
                     );
                 }),
             );
 
-            // ShiftRows, MixColumns, AddRoundKey
+            // Linear
             group.bench_function(
                 BenchmarkId::new(
-                    "Ruond 1 ShiftRows, MixColumns and AddRoundKey",
+                    format!("Round 2 ShiftRows, MixColumns, AddRoundKey"),
                     id,
                 ),
                 |b| b.iter(|| {
-                    // ShiftRows
                     he_shift_rows(black_box(&mut he_state));
                     he_shift_rows(black_box(&mut he_state_mult_by_2));
                     he_shift_rows(black_box(&mut he_state_mult_by_3));
 
-                    // MixColumns
                     he_mix_columns_precomp(
                         black_box(&mut he_state),
                         black_box(&he_state_mult_by_2),
                         black_box(&he_state_mult_by_3),
                     );
 
-                    // AddRoundKey
-                    he_add_round_key(
-                        black_box(&mut he_state),
-                        black_box(&he_round_keys[1]),
-                    );
+                    he_add_round_key(black_box(&mut he_state), black_box(&he_round_keys[2]));
                 }),
             );
         }
 
-        for r in 2..NUM_ROUNDS {
+        for r in 3..NUM_ROUNDS {
             // LWE KS
             group.bench_function(
                 BenchmarkId::new(

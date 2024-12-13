@@ -8,8 +8,8 @@ fn main() {
     // AES evaluation by patched WWL+ circuit bootstrapping
     let lwe_dimension = LweDimension(768);
     let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
-    let polynomial_size = PolynomialSize(2048);
-    let glwe_dimension = GlweDimension(1);
+    let polynomial_size = PolynomialSize(1024);
+    let glwe_dimension = GlweDimension(2);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
 
     let common_polynomial_size = PolynomialSize(256);
@@ -21,14 +21,14 @@ fn main() {
     let pbs_level = DecompositionLevelCount(1);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let ggsw_base_log = DecompositionBaseLog(3);
-    let ggsw_level = DecompositionLevelCount(4);
+    let ggsw_base_log = DecompositionBaseLog(2);
+    let ggsw_level = DecompositionLevelCount(7);
     let auto_base_log = DecompositionBaseLog(13);
     let auto_level = DecompositionLevelCount(3);
     let auto_fft_type = FftType::Split(41);
     let ss_base_log = DecompositionBaseLog(19);
     let ss_level = DecompositionLevelCount(2);
-    let log_lut_count = LutCountLog(2);
+    let log_lut_count = LutCountLog(3);
 
     test_aes_eval_by_patched_wwlp_cbs(
         lwe_dimension,
@@ -215,6 +215,31 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
         *he_bit.get_mut_body().data += (pt as u64) << 63;
     }
 
+    let vec_keyed_sbox_round_1 = generate_vec_keyed_lut_accumulator(
+        aes.get_keyed_sbox(0),
+        u64::BITS as usize - 1,
+        &glwe_sk,
+        glwe_modular_std_dev,
+        ciphertext_modulus,
+        &mut encryption_generator,
+    );
+    let vec_keyed_sbox_round_1_mult_by_2 = generate_vec_keyed_lut_accumulator(
+        aes.get_keyed_sbox_mult_by_2(0),
+        u64::BITS as usize - 1,
+        &glwe_sk,
+        glwe_modular_std_dev,
+        ciphertext_modulus,
+        &mut encryption_generator,
+    );
+    let vec_keyed_sbox_round_1_mult_by_3 = generate_vec_keyed_lut_accumulator(
+        aes.get_keyed_sbox_mult_by_3(0),
+        u64::BITS as usize - 1,
+        &glwe_sk,
+        glwe_modular_std_dev,
+        ciphertext_modulus,
+        &mut encryption_generator,
+    );
+
     let mut time_lwe_ks = Duration::ZERO;
     let mut time_sub_bytes = Duration::ZERO;
     let mut time_linear = Duration::ZERO;
@@ -227,7 +252,68 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     aes.add_round_key(&mut state, 0);
 
-    for r in 1..NUM_ROUNDS {
+    { // r = 1
+        println!("Round 1");;
+        // Keyed-LUT
+        let now = Instant::now();
+        known_rotate_keyed_lut(
+            message,
+            &vec_keyed_sbox_round_1,
+            &mut he_state,
+        );
+        known_rotate_keyed_lut(
+            message,
+            &vec_keyed_sbox_round_1_mult_by_2,
+            &mut he_state_mult_by_2,
+        );
+        known_rotate_keyed_lut(
+            message,
+            &vec_keyed_sbox_round_1_mult_by_3,
+            &mut he_state_mult_by_3,
+        );
+        time_sub_bytes += now.elapsed();
+
+        aes.sub_bytes(&mut state);
+        let (vec_err, max_err) = get_he_state_error(&he_state, state, &lwe_sk);
+        print!("  - SubBytes:");
+        for bit_err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
+            print!(" {bit_err:>2}");
+        }
+        println!(" ... (max: {:.3})", (max_err as f64).log2());
+
+        let now = Instant::now();
+        // ShiftRows
+        he_shift_rows(&mut he_state);
+        he_shift_rows(&mut he_state_mult_by_2);
+        he_shift_rows(&mut he_state_mult_by_3);
+
+        // MixColumns
+        he_mix_columns_precomp(
+            &mut he_state,
+            &he_state_mult_by_2,
+            &he_state_mult_by_3,
+        );
+
+        // AddRoundKey
+        he_add_round_key(&mut he_state, &he_round_keys[1]);
+        time_linear += now.elapsed();
+
+        aes.shift_rows(&mut state);
+        aes.mix_columns(&mut state);
+        aes.add_round_key(&mut state, 1);
+
+        // Check error
+        let (vec_err, max_err) = get_he_state_error(&he_state, state, &lwe_sk);
+        print!("  - Linear  :");
+        for bit_err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
+            print!(" {bit_err:>2}");
+        }
+        println!(" ... (max: {:.3})", (max_err as f64).log2());
+
+        let cur_time = time_sub_bytes + time_linear + time_lwe_ks;
+        println!("  - Latency: {:.3} ms", cur_time.as_micros() as f64 / 1000f64);
+    }
+    for r in 2..NUM_ROUNDS {
         println!("Round {r}");
         // LWE KS
         let now = Instant::now();

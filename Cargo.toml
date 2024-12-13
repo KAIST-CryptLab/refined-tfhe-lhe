@@ -127,6 +127,22 @@ harness = false
 name = "bench_aes"
 harness = false
 
+[[bench]]
+name = "bench_aes_half_cbs"
+harness = false
+
+[[bench]]
+name = "bench_aes_others"
+harness = false
+
+[[bench]]
+name = "bench_wopbs"
+harness = false
+
+[[bench]]
+name = "bench_cmux"
+harness = false
+
 [features]
 default = ["monothread"]
 monothread = []

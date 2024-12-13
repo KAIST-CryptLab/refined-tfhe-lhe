@@ -61,6 +61,38 @@ pub fn he_sub_bytes_by_patched_wwlp_cbs<Scalar, InputCont, OutputCont>(
 }
 
 
+pub fn known_rotate_keyed_lut<Scalar, AccCont, OutputCont>(
+    input_cleartext: [u8; BLOCKSIZE_IN_BYTE],
+    vec_keyed_sbox: &Vec<GlweCiphertextList<AccCont>>,
+    lwe_state_output: &mut LweCiphertextList<OutputCont>,
+) where
+    Scalar: UnsignedTorus + CastFrom<usize>,
+    AccCont: Container<Element=Scalar>,
+    OutputCont: ContainerMut<Element=Scalar>,
+{
+    let polynomial_size = vec_keyed_sbox.get(0).unwrap().polynomial_size();
+
+    let num_par_lut = polynomial_size.0 / (1 << BYTESIZE);
+    for i in 0..BLOCKSIZE_IN_BIT {
+        let mut lwe_bit = lwe_state_output.get_mut(i);
+        let byte_idx = i / BYTESIZE;
+        let bit_idx = i % BYTESIZE;
+
+        let keyed_acc_list = vec_keyed_sbox.get(byte_idx).unwrap();
+
+        let acc_idx = bit_idx / num_par_lut;
+        let lut_idx = bit_idx % num_par_lut;
+        let deg = lut_idx * (1 << BYTESIZE) + input_cleartext[byte_idx] as usize;
+
+        extract_lwe_sample_from_glwe_ciphertext(
+            &keyed_acc_list.get(acc_idx),
+            &mut lwe_bit,
+            MonomialDegree(deg),
+        );
+    }
+}
+
+
 pub fn known_rotate_keyed_lut_for_half_cbs<Scalar, AccCont, OutputCont>(
     input_cleartext: [u8; BLOCKSIZE_IN_BYTE],
     vec_keyed_sbox_glev: &Vec<Vec<GlweCiphertextList<AccCont>>>,
