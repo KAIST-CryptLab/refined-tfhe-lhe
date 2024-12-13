@@ -1,37 +1,174 @@
+use auto_base_conv::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, get_max_err_ggsw_bit};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, FourierGlweKeyswitchKey, HighPrecWWLpCBSParam, WWLpCBSParam, wwlp_cbs_instance::*};
+#[allow(unused)]
+use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, wopbs_instance::*, wopbs_params::ImprovedWopbsParam, wwlp_cbs_instance::*, FourierGlweKeyswitchKey, HighPrecWWLpCBSParam, WWLpCBSParam};
 
 type Scalar = u64;
 const NUM_REPEAT: usize = 1000;
 
 fn main() {
-    // wopbs_param_message_2_carry_2
-    println!("-------- wopbs_param_message_2_carry_2 --------");
-    sample_wwlp_cbs_err(
-        *WWLP_CBS_WOPBS_2_2,
-        (*CBS_WOPBS_2_2).pfks_base_log(),
-        (*CBS_WOPBS_2_2).pfks_level(),
+    // CMUX1
+    println!("# Sample: {NUM_REPEAT}\n");
+    println!("-------- CMUX1 --------");
+    sample_cmux_cbs_error(
+        *BITWISE_CBS_CMUX1,
         NUM_REPEAT,
+    );
+    println!();
+
+    // CMUX2
+    println!("-------- CMUX2 --------");
+    sample_cmux_cbs_error(
+        *BITWISE_CBS_CMUX2,
+        NUM_REPEAT,
+    );
+    println!();
+
+    // CMUX3
+    println!("-------- CMUX3 --------");
+    sample_cmux_cbs_error(
+        *BITWISE_CBS_CMUX3,
+        NUM_REPEAT,
+    );
+    println!();
+}
+
+#[allow(unused)]
+fn sample_cmux_cbs_error(
+    param: ImprovedWopbsParam<u64>,
+    num_repeat: usize,
+) {
+    let lwe_dimension = param.lwe_dimension();
+    let lwe_modular_std_dev = param.lwe_modular_std_dev();
+    let glwe_dimension = param.glwe_dimension();
+    let polynomial_size = param.polynomial_size();
+    let glwe_modular_std_dev = param.glwe_modular_std_dev();
+    let pbs_base_log = param.pbs_base_log();
+    let pbs_level = param.pbs_level();
+    let ks_base_log = param.ks_base_log();
+    let ks_level = param.ks_level();
+    let auto_base_log = param.auto_base_log();
+    let auto_level = param.auto_level();
+    let auto_fft_type = param.fft_type_auto();
+    let ss_base_log = param.ss_base_log();
+    let ss_level = param.ss_level();
+    let cbs_base_log = param.cbs_base_log();
+    let cbs_level = param.cbs_level();
+    let log_lut_count = param.log_lut_count();
+    let ciphertext_modulus = param.ciphertext_modulus();
+
+    println!(
+"n: {}, N: {}, k: {}, B_pbs: 2^{}, l_pbs: {}, B_ks: 2^{}, l_ks: {}, B_cbs: 2^{}, l_cbs: {},
+B_auto: 2^{}, l_auto: {}, fft_type: {:?}, B_ss: 2^{}, l_ss: {}\n",
+        lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_base_log.0, pbs_level.0, ks_base_log.0, ks_level.0, cbs_base_log.0, cbs_level.0,
+        auto_base_log.0, auto_level.0, auto_fft_type, ss_base_log.0, ss_level.0,
     );
 
-    // wopbs_param_message_3_carry_3
-    println!("-------- wopbs_param_message_3_carry_3 --------");
-    sample_high_prec_wwlp_cbs_err(
-        *HIGHPREC_WWLP_CBS_WOPBS_3_3,
-        (*CBS_WOPBS_3_3).pfks_base_log(),
-        (*CBS_WOPBS_3_3).pfks_level(),
-        NUM_REPEAT,
+    let glwe_size = glwe_dimension.to_glwe_size();
+
+    // Set random generators and buffers
+    let mut boxed_seeder = new_seeder();
+    let seeder = boxed_seeder.as_mut();
+
+    let mut secret_generator = SecretRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed());
+    let mut encryption_generator = EncryptionRandomGenerator::<ActivatedRandomGenerator>::new(seeder.seed(), seeder);
+
+    // Generate keys
+    let (
+        lwe_sk,
+        glwe_sk,
+        lwe_sk_after_ks,
+        bsk,
+        ksk,
+    ) = keygen_pbs(
+        lwe_dimension,
+        glwe_dimension,
+        polynomial_size,
+        lwe_modular_std_dev,
+        glwe_modular_std_dev,
+        pbs_base_log,
+        pbs_level,
+        ks_base_log,
+        ks_level,
+        &mut secret_generator,
+        &mut encryption_generator,
+    );
+    let bsk = bsk.as_view();
+
+    let auto_keys = gen_all_auto_keys(
+        auto_base_log,
+        auto_level,
+        auto_fft_type,
+        &glwe_sk,
+        glwe_modular_std_dev,
+        &mut encryption_generator,
     );
 
-    // wopbs_param_message_4_carry_4
-    println!("-------- wopbs_param_message_4_carry_4 --------");
-    sample_high_prec_wwlp_cbs_err(
-        *HIGHPREC_WWLP_CBS_WOPBS_4_4,
-        (*CBS_WOPBS_4_4).pfks_base_log(),
-        (*CBS_WOPBS_4_4).pfks_level(),
-        NUM_REPEAT,
+    let ss_key = generate_scheme_switching_key(
+        &glwe_sk,
+        ss_base_log,
+        ss_level,
+        glwe_modular_std_dev,
+        ciphertext_modulus,
+        &mut encryption_generator,
     );
+    let ss_key = ss_key.as_view();
+
+    let mut cbs_l_infty_err_list = vec![];
+
+    for _ in 0..num_repeat {
+        // Set input LWE ciphertext
+        let mut rng = rand::thread_rng();
+        let msg = rng.gen_range(0..2);
+        let lwe = allocate_and_encrypt_new_lwe_ciphertext(
+            &lwe_sk,
+            Plaintext(msg << (u64::BITS - 1)),
+            glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+
+        let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, cbs_base_log, cbs_level, ciphertext_modulus);
+
+        let mut acc_glev = GlweCiphertextList::new(0u64, glwe_size, polynomial_size, GlweCiphertextCount(cbs_level.0), ciphertext_modulus);
+
+        let mut lwe_ks = LweCiphertext::new(0u64, ksk.output_lwe_size(), ciphertext_modulus);
+        keyswitch_lwe_ciphertext(&ksk, &lwe, &mut lwe_ks);
+
+        blind_rotate_for_msb(
+            &lwe_ks,
+            &mut acc_glev,
+            bsk,
+            log_lut_count,
+            cbs_base_log,
+            cbs_level,
+            1,
+            ciphertext_modulus,
+        );
+
+        convert_to_ggsw_after_blind_rotate(
+            &acc_glev,
+            &mut ggsw,
+            0,
+            &auto_keys,
+            ss_key,
+            ciphertext_modulus,
+        );
+
+        let err = get_max_err_ggsw_bit(&glwe_sk, ggsw.as_view(), msg);
+        cbs_l_infty_err_list.push(err);
+    }
+
+    let mut sum_err = 0u64;
+    let mut max_err = 0u64;
+    for err in cbs_l_infty_err_list.iter() {
+        sum_err += err;
+        max_err = std::cmp::max(max_err, *err);
+    }
+    let avg_err = (sum_err as f64) / num_repeat as f64;
+    let max_err = max_err as f64;
+    println!("Infinity norm: (Avg) {:.2} bits (Max) {:.2} bits", avg_err.log2(), max_err.log2());
 }
 
 

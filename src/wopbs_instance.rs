@@ -120,29 +120,6 @@ lazy_static! {
         FftType::Split(37), // fft_type_auto
         DecompositionBaseLog(17), // ss_base_log
         DecompositionLevelCount(2), // ss_level
-        DecompositionBaseLog(5), // cbs_base_log
-        DecompositionLevelCount(4), // cbs_level
-        LutCountLog(2), // log_lut_count
-        CiphertextModulus::<u64>::new_native(), // ciphertext_modulus
-        1,
-    );
-
-
-    pub static ref BITWISE_CBS_CMUX3_FIXED: ImprovedWopbsParam<u64> = ImprovedWopbsParam::new(
-        LweDimension(571), // lwe_dimension
-        StandardDev(3.2 / 2.0f64.powi(14)), // lwe_modular_std_dev
-        PolynomialSize(2048), // polynomial_size
-        GlweDimension(1), // glwe_dimension
-        StandardDev(3.2 / 18014398509481984.0), // glwe_modular_std_dev
-        DecompositionBaseLog(15), // pbs_base_log
-        DecompositionLevelCount(2), // pbs_level
-        DecompositionBaseLog(2), // ks_base_log
-        DecompositionLevelCount(5), // ks_level
-        DecompositionBaseLog(8), // auto_base_log
-        DecompositionLevelCount(6), // auto_level
-        FftType::Split(37), // fft_type_auto
-        DecompositionBaseLog(17), // ss_base_log
-        DecompositionLevelCount(2), // ss_level
         DecompositionBaseLog(4), // cbs_base_log
         DecompositionLevelCount(4), // cbs_level
         LutCountLog(2), // log_lut_count
