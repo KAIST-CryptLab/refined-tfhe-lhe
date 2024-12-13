@@ -26,7 +26,7 @@ fn main() {
     let pfpks_level = DecompositionLevelCount(2);
     let auto_base_log = DecompositionBaseLog(7);
     let auto_level = DecompositionLevelCount(6);
-    let fft_type = FftType::Split32;
+    let fft_type = FftType::Split(32);
     let pksk_base_log = DecompositionBaseLog(15);
     let pksk_level = DecompositionLevelCount(2);
     let ss_base_log = DecompositionBaseLog(10);

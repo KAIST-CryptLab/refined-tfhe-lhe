@@ -2,66 +2,99 @@ use std::time::Instant;
 use auto_base_conv::{get_glwe_l2_err, get_glwe_max_err};
 use tfhe::core_crypto::prelude::*;
 
-type Scalar = u64;
-
 fn main() {
     // message_2_carry_2_ks_pbs
+    // let lwe_dimension = LweDimension(742);
+    // let glwe_dimension = GlweDimension(1);
+    // let polynomial_size = PolynomialSize(2048);
+    // let lwe_modular_std_dev = StandardDev(0.000007069849454709433);
+    // let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    // let ks_level = DecompositionLevelCount(5);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
+
+    // let big_pksk_base_log = DecompositionBaseLog(24);
+    // let big_pksk_level = DecompositionLevelCount(1);
+    // let small_pksk_base_log = DecompositionBaseLog(24);
+    // let small_pksk_level = DecompositionLevelCount(1);
+
+    // println!("mssage_2_carry_2_ks_pbs");
+    // test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
+    // test_pksk_list(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, 16, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
+
+    // message_3_carry_3_ks_pbs
+    // let lwe_dimension = LweDimension(864);
+    // let glwe_dimension = GlweDimension(1);
+    // let polynomial_size = PolynomialSize(8192);
+    // let lwe_modular_std_dev = StandardDev(0.000000757998020150446);
+    // let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
+    // let ks_level = DecompositionLevelCount(6);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
+
+    // let big_pksk_base_log = DecompositionBaseLog(29);
+    // let big_pksk_level = DecompositionLevelCount(1);
+    // let small_pksk_base_log = DecompositionBaseLog(29);
+    // let small_pksk_level = DecompositionLevelCount(1);
+
+    // println!("mssage_3_carry_3_ks_pbs");
+    // test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
+
+    // message_4_carry_4_ks_pbs
+    // let lwe_dimension = LweDimension(996);
+    // let lwe_modular_std_dev = StandardDev(0.00000006767666038309478);
+    // let polynomial_size = PolynomialSize(32768);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
+    // let ks_level = DecompositionLevelCount(7);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
+
+    // let big_pksk_base_log = DecompositionBaseLog(29);
+    // let big_pksk_level = DecompositionLevelCount(1);
+    // let small_pksk_base_log = DecompositionBaseLog(23);
+    // let small_pksk_level = DecompositionLevelCount(1);
+
+    // println!("mssage_4_carry_4_ks_pbs");
+    // test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
+
+    // let lwe_dimension = LweDimension(630);
+    // let lwe_modular_std_dev = StandardDev(2.0f64.powi(-15));
+    // let polynomial_size = PolynomialSize(1024);
+    // let glwe_dimension = GlweDimension(1);
+    // let glwe_modular_std_dev = StandardDev(2.0f64.powi(-25));
+    // let ks_level = DecompositionLevelCount(5);
+    // let ks_base_log = DecompositionBaseLog(3);
+    // let ciphertext_modulus = CiphertextModulus::<u32>::new_native();
+
+    // 5_5_6_2
+    // let pksk_level = DecompositionLevelCount(2);
+    // let pksk_base_log = DecompositionBaseLog(6);
+
+    // test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, pksk_base_log, pksk_level, pksk_base_log, pksk_level);
+    // println!();
+
+    // 6_4_6_3
+    // let pksk_level = DecompositionLevelCount(3);
+    // let pksk_base_log = DecompositionBaseLog(6);
+    // test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, pksk_base_log, pksk_level, pksk_base_log, pksk_level);
+
+    // PARAM_M3_C1
     let lwe_dimension = LweDimension(742);
     let glwe_dimension = GlweDimension(1);
     let polynomial_size = PolynomialSize(2048);
     let lwe_modular_std_dev = StandardDev(0.000007069849454709433);
     let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
-    let ks_level = DecompositionLevelCount(5);
-    let ks_base_log = DecompositionBaseLog(3);
-    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
-
-    let big_pksk_base_log = DecompositionBaseLog(24);
-    let big_pksk_level = DecompositionLevelCount(1);
-    let small_pksk_base_log = DecompositionBaseLog(24);
-    let small_pksk_level = DecompositionLevelCount(1);
-
-    println!("mssage_2_carry_2_ks_pbs");
-    test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
-    test_pksk_list(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, 16, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
-
-    // message_3_carry_3_ks_pbs
-    let lwe_dimension = LweDimension(864);
-    let glwe_dimension = GlweDimension(1);
-    let polynomial_size = PolynomialSize(8192);
-    let lwe_modular_std_dev = StandardDev(0.000000757998020150446);
-    let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
-    let ks_level = DecompositionLevelCount(6);
-    let ks_base_log = DecompositionBaseLog(3);
-    let ciphertext_modulus = CiphertextModulus::<Scalar>::new_native();
-
-    let big_pksk_base_log = DecompositionBaseLog(29);
-    let big_pksk_level = DecompositionLevelCount(1);
-    let small_pksk_base_log = DecompositionBaseLog(29);
-    let small_pksk_level = DecompositionLevelCount(1);
-
-    println!("mssage_3_carry_3_ks_pbs");
-    test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
-
-    // message_4_carry_4_ks_pbs
-    let lwe_dimension = LweDimension(996);
-    let lwe_modular_std_dev = StandardDev(0.00000006767666038309478);
-    let polynomial_size = PolynomialSize(32768);
-    let glwe_dimension = GlweDimension(1);
-    let glwe_modular_std_dev = StandardDev(0.0000000000000000002168404344971009);
-    let ks_level = DecompositionLevelCount(7);
-    let ks_base_log = DecompositionBaseLog(3);
+    let pbs_base_log = DecompositionBaseLog(23);
+    let pbs_level = DecompositionLevelCount(1);
+    let pksk_level = DecompositionLevelCount(1);
+    let pksk_base_log = DecompositionBaseLog(23);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let big_pksk_base_log = DecompositionBaseLog(29);
-    let big_pksk_level = DecompositionLevelCount(1);
-    let small_pksk_base_log = DecompositionBaseLog(23);
-    let small_pksk_level = DecompositionLevelCount(1);
-
-    println!("mssage_4_carry_4_ks_pbs");
-    test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, ks_base_log, ks_level, ciphertext_modulus, big_pksk_base_log, big_pksk_level, small_pksk_base_log, small_pksk_level);
+    test_pksk(lwe_dimension, glwe_dimension, polynomial_size, lwe_modular_std_dev, glwe_modular_std_dev, pbs_base_log, pbs_level, ciphertext_modulus, pksk_base_log, pksk_level, pksk_base_log, pksk_level);
 }
 
-fn test_pksk(
+fn test_pksk<Scalar: UnsignedTorus + CastInto<f64>>(
     lwe_dimension: LweDimension,
     glwe_dimension: GlweDimension,
     polynomial_size: PolynomialSize,
@@ -123,7 +156,7 @@ fn test_pksk(
 
     let lwe_big = allocate_and_encrypt_new_lwe_ciphertext(
         &big_lwe_sk,
-        Plaintext(0),
+        Plaintext(Scalar::ZERO),
         glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
@@ -144,8 +177,9 @@ fn test_pksk(
     let time = now.elapsed();
 
     let max_err = get_glwe_max_err(&glwe_sk, &out, &correct_val_list);
+    let max_err: f64 = max_err.cast_into();
     let l2_err = get_glwe_l2_err(&glwe_sk, &out, &correct_val_list);
-    println!("big pksk: {} ms, (Max) {:.2} bits (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2(), l2_err.log2());
+    println!("big pksk: {} ms, (Max) {:.2} bits (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, max_err.log2(), l2_err.log2());
 
     let mut lwe_ks = LweCiphertext::new(Scalar::ZERO, lwe_dimension.to_lwe_size(), ciphertext_modulus);
     let now = Instant::now();
@@ -157,18 +191,19 @@ fn test_pksk(
     let time_total = time_lwe_ks + time_pksk;
 
     let max_err = get_glwe_max_err(&glwe_sk, &out, &correct_val_list);
+    let max_err: f64 = max_err.cast_into();
     let l2_err = get_glwe_l2_err(&glwe_sk, &out, &correct_val_list);
     println!("small pksk: {} ms + {} ms = {} ms, (Max) {:.2} bits (l2) {:.2} bits\n",
         time_lwe_ks.as_micros() as f64 / 1000f64,
         time_pksk.as_micros() as f64 / 1000f64,
         time_total.as_micros() as f64 / 1000f64,
-        (max_err as f64).log2(),
+        max_err.log2(),
         l2_err.log2(),
     );
 }
 
 #[allow(unused)]
-fn test_pksk_list(
+fn test_pksk_list<Scalar: UnsignedTorus + CastInto<f64>>(
     lwe_dimension: LweDimension,
     glwe_dimension: GlweDimension,
     polynomial_size: PolynomialSize,
@@ -238,7 +273,7 @@ fn test_pksk_list(
     encrypt_lwe_ciphertext_list(
         &big_lwe_sk,
         &mut lwe_list_big,
-        &PlaintextList::new(0u64, PlaintextCount(num_lwe)),
+        &PlaintextList::new(Scalar::ZERO, PlaintextCount(num_lwe)),
         glwe_modular_std_dev,
         &mut encryption_generator,
     );
@@ -258,8 +293,9 @@ fn test_pksk_list(
     let time = now.elapsed();
 
     let max_err = get_glwe_max_err(&glwe_sk, &out, &correct_val_list);
+    let max_err: f64 = max_err.cast_into();
     let l2_err = get_glwe_l2_err(&glwe_sk, &out, &correct_val_list);
-    println!("big pksk: {} ms, err: (Max) {:.2} bits (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, (max_err as f64).log2(), l2_err.log2());
+    println!("big pksk: {} ms, err: (Max) {:.2} bits (l2) {:.2} bits", time.as_micros() as f64 / 1000f64, max_err.log2(), l2_err.log2());
 
     let mut lwe_list_ks = LweCiphertextList::new(Scalar::ZERO, lwe_dimension.to_lwe_size(),LweCiphertextCount(num_lwe), ciphertext_modulus);
     let now = Instant::now();
@@ -273,12 +309,13 @@ fn test_pksk_list(
     let time_total = time_lwe_ks + time_pksk;
 
     let max_err = get_glwe_max_err(&glwe_sk, &out, &correct_val_list);
+    let max_err: f64 = max_err.cast_into();
     let l2_err = get_glwe_l2_err(&glwe_sk, &out, &correct_val_list);
     println!("small pksk: {} ms + {} ms = {} ms, err: (Max) {:.2} bits (l2) {:.2} bits\n",
         time_lwe_ks.as_micros() as f64 / 1000f64,
         time_pksk.as_micros() as f64 / 1000f64,
         time_total.as_micros() as f64 / 1000f64,
-        (max_err as f64).log2(),
+        max_err.log2(),
         l2_err.log2(),
     );
 }
