@@ -112,6 +112,10 @@ harness = false
 name = "lwe_ks_by_glwe_ds"
 harness = false
 
+[[test]]
+name = "lut"
+harness = false
+
 [[bench]]
 name = "bench_lwe_to_glwe"
 harness = false
@@ -142,6 +146,14 @@ harness = false
 
 [[bench]]
 name = "bench_cmux"
+harness = false
+
+[[bench]]
+name = "bench_tree"
+harness = false
+
+[[bench]]
+name = "bench_lut"
 harness = false
 
 [features]
