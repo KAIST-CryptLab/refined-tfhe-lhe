@@ -1,3 +1,4 @@
+pub mod lwe_std_dev_param;
 pub mod utils;
 pub mod fourier_poly_mult;
 pub mod mod_switch;
@@ -15,13 +16,12 @@ pub mod aes_ref;
 pub mod aes_he;
 pub mod auto_conv_params;
 pub mod auto_conv_instance;
-pub mod wwlp_cbs_params;
-pub mod wwlp_cbs_instance;
 pub mod wopbs_params;
 pub mod wopbs_instance;
 pub mod aes_params;
 pub mod aes_instances;
 
+pub use lwe_std_dev_param::*;
 pub use utils::*;
 pub use fourier_poly_mult::*;
 pub use mod_switch::*;
@@ -39,7 +39,5 @@ pub use aes_ref::*;
 pub use aes_he::*;
 pub use auto_conv_params::*;
 pub use auto_conv_instance::*;
-pub use wwlp_cbs_params::*;
-pub use wwlp_cbs_instance::*;
 pub use aes_params::*;
 pub use aes_instances::*;

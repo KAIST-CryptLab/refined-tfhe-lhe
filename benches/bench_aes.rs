@@ -17,7 +17,8 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes evaluation by patched WWL+ circuit bootstrapping");
 
     let param_list = [
-        (*AES_TIGHT, "tight"),
+        (*AES_SET_1, "AES_SET_1"),
+        (*AES_SET_2, "AES_SET_2"),
     ];
 
     for (param, id) in param_list.iter() {

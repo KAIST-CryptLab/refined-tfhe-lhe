@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 use dyn_stack::ReborrowMut;
 use tfhe::core_crypto::prelude::*;
 use tfhe::core_crypto::fft_impl::fft64::{c64, crypto::wop_pbs::{circuit_bootstrap_boolean_scratch, circuit_bootstrap_boolean}};
-use auto_base_conv::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*, wwlp_cbs_instance::*};
+use auto_base_conv::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*};
 
 criterion_group!(
     name = benches;
@@ -19,9 +19,9 @@ fn criterion_benchmark_baseline(c: &mut Criterion) {
     let mut group = c.benchmark_group("baseline");
 
     let param_list = [
-        (*CBS_WOPBS_2_2, "wopbs_2_2"),
-        (*CBS_WOPBS_3_3, "wopbs_3_3"),
-        (*CBS_WOPBS_4_4, "wopbs_4_4"),
+        (*WOPBS_2_2, "wopbs_2_2"),
+        (*WOPBS_3_3, "wopbs_3_3"),
+        (*WOPBS_4_4, "wopbs_4_4"),
     ];
 
     for (param, id) in param_list.iter() {
@@ -171,9 +171,9 @@ fn criterion_benchmark_cbs(c: &mut Criterion) {
     let mut group = c.benchmark_group("original circuit bootstrapping");
 
     let param_list = [
-        (*CBS_WOPBS_2_2, "wopbs_2_2"),
-        (*CBS_WOPBS_3_3, "wopbs_3_3"),
-        (*CBS_WOPBS_4_4, "wopbs_4_4"),
+        (*WOPBS_2_2, "wopbs_2_2"),
+        (*WOPBS_3_3, "wopbs_3_3"),
+        (*WOPBS_4_4, "wopbs_4_4"),
     ];
 
     for (param, id) in param_list.iter() {

@@ -1,21 +1,19 @@
 load("var.sage")
+load("param.sage")
 
-n = 571
-# Var_LWE = (2^(-12.05))^2
-Var_LWE = (3.2 / 2^14)^2
+n = 636
+Var_LWE = stddev_636^2 # 130.7-bit security
 B_ksk = 2^2
 l_ksk = 5
 N = 2048
 k = 1
-# Var_GLWE = (0.00000000000000029403601535432533)^2
-Var_GLWE = (3.2 / 18014398509481984)^2
+Var_GLWE = stddev_2048^2
 theta = 2
 q = 2^64
 delta_in = 2^63
 
 print(f"n = {n}, Var_LWE = 2^{log(Var_LWE, 2).n():.4f}, N = {N}, k = {k}, Var_GLWE = 2^{log(Var_GLWE, 2).n():.4f}, q = 2^{log(q, 2)}, theta = {theta}, B_ks = 2^{log(B_ksk, 2)}, l_ks = {l_ksk}")
-# log_fp_thrs_list = [-32, -50, -80, -128]
-log_fp_thrs_list = [-32]
+log_fp_thrs_list = [-40]
 for log_fp_thrs in log_fp_thrs_list:
     log_var_thrs = find_var_thrs(n, q, N, theta, delta_in, log_fp_thrs)
     print(f"  - For F.P. bound of 2^{log_fp_thrs}, var_thrs = 2^{log_var_thrs.n():.4f}")
@@ -27,35 +25,12 @@ print(f"Var_lwe_ks: 2^{log(Var_lwe_ks, 2).n():.4f}")
 print(f"  - Var_lwe_ks_gadget: 2^{log(Var_lwe_ks_gadget, 2).n():.4f}")
 print(f"  - Var_lwe_ks_key   : 2^{log(Var_lwe_ks_key, 2).n():.4f}")
 print()
-# exit()
 
-
-CMUX1 = (
-    "CMUX1",
-    (2^23, 1), # (B_pbs, l_pbs)
-    (2^13, 3, 2^42), # (B_tr, l_tr, b_tr)
-    (2^26, 1), # (B_ss, l_ss)
-    (2^3, 4), # (B_cbs, l_cbs)
-)
-CMUX2 = (
-    "CMUX2",
-    (2^15, 2), # (B_pbs, l_pbs)
-    (2^13, 3, 2^42), # (B_tr, l_tr, b_tr)
-    (2^17, 2), # (B_ss, l_ss)
-    (2^4, 4), # (B_cbs, l_cbs)
-)
-CMUX3 = (
-    "CMUX3",
-    (2^15, 2), # (B_pbs, l_pbs)
-    (2^8, 6, 2^37), # (B_tr, l_tr, b_tr)
-    (2^17, 2), # (B_ss, l_ss)
-    (2^5, 4), # (B_cbs, l_cbs)
-)
 
 param_list = [
-    CMUX1,
-    CMUX2,
-    CMUX3,
+    cmux1,
+    cmux2,
+    cmux3,
 ]
 
 for param in param_list:
@@ -90,10 +65,10 @@ for param in param_list:
     Gamma, fp_split_fft = get_fp_split_fft_glwe_ks(N, k, q, B_tr, l_tr, b_tr)
 
     print(f"Var_tr_tot: 2^{log(Var_tr_tot, 2).n():.4f}")
-    print(f"  - Var_tr: 2^{log(Var_tr, 2).n():.4f}")
+    print(f"  - Var_tr:     2^{log(Var_tr, 2).n():.4f}")
     print(f"    - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"    - Var_auto_key   : 2^{log(Var_auto_key, 2).n():.4f}")
-    print(f"  - Var_fft_tr = 2^{log(Var_fft_tr, 2).n():.4f}")
+    print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
     print(f"F.P. of split FFT for Tr: Gamma = {Gamma:.4f}, fp = 2^{log(fp_split_fft, 2).n(10000):.4f}")
     print()
 

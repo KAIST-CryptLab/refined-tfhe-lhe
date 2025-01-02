@@ -2,18 +2,18 @@ use std::time::{Duration, Instant};
 
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{aes_he::*, aes_ref::*, automorphism::*, get_max_err_ggsw_int, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType};
+use auto_base_conv::{aes_he::*, aes_ref::*, allocate_and_generate_new_glwe_keyswitch_key, automorphism::*, convert_standard_glwe_keyswitch_key_to_fourier, get_max_err_ggsw_int, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType, FourierGlweKeyswitchKey};
 
 fn main() {
     // AES evaluation by patched WWL+ circuit bootstrapping
     let lwe_dimension = LweDimension(768);
-    let lwe_modular_std_dev = StandardDev(2.0f64.powf(-17.12));
+    let lwe_modular_std_dev = StandardDev(8.763872947670246e-06);
     let polynomial_size = PolynomialSize(1024);
     let glwe_dimension = GlweDimension(2);
-    let glwe_modular_std_dev = StandardDev(0.00000000000000029403601535432533);
+    let glwe_modular_std_dev = StandardDev(9.25119974676756e-16);
 
     let common_polynomial_size = PolynomialSize(256);
-    let ds_fft_type = FftType::Split16;
+    let ds_fft_type = FftType::Vanilla;
     let glwe_ds_level = DecompositionLevelCount(3);
     let glwe_ds_base_log = DecompositionBaseLog(4);
 
@@ -21,22 +21,39 @@ fn main() {
     let pbs_level = DecompositionLevelCount(1);
     let ciphertext_modulus = CiphertextModulus::<u64>::new_native();
 
-    let ggsw_base_log = DecompositionBaseLog(2);
-    let ggsw_level = DecompositionLevelCount(7);
-    let auto_base_log = DecompositionBaseLog(13);
+    let auto_base_log = DecompositionBaseLog(12);
     let auto_level = DecompositionLevelCount(3);
-    let auto_fft_type = FftType::Split(41);
-    let ss_base_log = DecompositionBaseLog(19);
+    let auto_fft_type = FftType::Vanilla;
+    let ss_base_log = DecompositionBaseLog(17);
     let ss_level = DecompositionLevelCount(2);
+    let cbs_base_log = DecompositionBaseLog(2);
+    let cbs_level = DecompositionLevelCount(6);
     let log_lut_count = LutCountLog(3);
 
-    let half_cbs_auto_base_log = DecompositionBaseLog(6);
-    let half_cbs_auto_level = DecompositionLevelCount(8);
-    let half_cbs_auto_fft_type = FftType::Vanilla;
-    let half_cbs_ss_base_log = DecompositionBaseLog(19);
-    let half_cbs_ss_level = DecompositionLevelCount(2);
-    let half_cbs_base_log = DecompositionBaseLog(4);
-    let half_cbs_level = DecompositionLevelCount(6);
+    // let half_cbs_glwe_dimension = GlweDimension(2);
+    // let half_cbs_polynomial_size = PolynomialSize(1024);
+    // let half_cbs_glwe_modular_std_dev = StandardDev(9.25119974676756e-16);
+    let half_cbs_glwe_dimension = GlweDimension(3);
+    let half_cbs_polynomial_size = PolynomialSize(1024);
+    let half_cbs_glwe_modular_std_dev = StandardDev(2.168404344971009e-19);
+    let half_cbs_glwe_ds_base_log = DecompositionBaseLog(4);
+    let half_cbs_glwe_ds_level = DecompositionLevelCount(3);
+    let half_cbs_ds_fft_type = FftType::Vanilla;
+
+    // let half_cbs_auto_base_log = DecompositionBaseLog(4);
+    // let half_cbs_auto_level = DecompositionLevelCount(11);
+    // let half_cbs_auto_fft_type = FftType::Vanilla;
+    // let half_cbs_ss_base_log = DecompositionBaseLog(17);
+    // let half_cbs_ss_level = DecompositionLevelCount(2);
+    // let half_cbs_base_log = DecompositionBaseLog(4);
+    // let half_cbs_level = DecompositionLevelCount(5);
+    let half_cbs_auto_base_log = DecompositionBaseLog(15);
+    let half_cbs_auto_level = DecompositionLevelCount(3);
+    let half_cbs_auto_fft_type = FftType::Split(42);
+    let half_cbs_ss_base_log = DecompositionBaseLog(13);
+    let half_cbs_ss_level = DecompositionLevelCount(3);
+    let half_cbs_base_log = DecompositionBaseLog(7);
+    let half_cbs_level = DecompositionLevelCount(3);
 
     test_aes_eval_by_half_cbs(
         lwe_dimension,
@@ -54,9 +71,15 @@ fn main() {
         auto_base_log,
         auto_level,
         auto_fft_type,
-        ggsw_base_log,
-        ggsw_level,
+        cbs_base_log,
+        cbs_level,
         log_lut_count,
+        half_cbs_glwe_dimension,
+        half_cbs_polynomial_size,
+        half_cbs_glwe_modular_std_dev,
+        half_cbs_glwe_ds_base_log,
+        half_cbs_glwe_ds_level,
+        half_cbs_ds_fft_type,
         half_cbs_ss_base_log,
         half_cbs_ss_level,
         half_cbs_auto_base_log,
@@ -86,9 +109,15 @@ fn test_aes_eval_by_half_cbs(
     auto_base_log: DecompositionBaseLog,
     auto_level: DecompositionLevelCount,
     auto_fft_type: FftType,
-    ggsw_base_log: DecompositionBaseLog,
-    ggsw_level: DecompositionLevelCount,
+    cbs_base_log: DecompositionBaseLog,
+    cbs_level: DecompositionLevelCount,
     log_lut_count: LutCountLog,
+    half_cbs_glwe_dimension: GlweDimension,
+    half_cbs_polynomial_size: PolynomialSize,
+    half_cbs_glwe_modular_std_dev: impl DispersionParameter,
+    half_cbs_glwe_ds_base_log: DecompositionBaseLog,
+    half_cbs_glwe_ds_level: DecompositionLevelCount,
+    half_cbs_ds_fft_type: FftType,
     half_cbs_ss_base_log: DecompositionBaseLog,
     half_cbs_ss_level: DecompositionLevelCount,
     half_cbs_auto_base_log: DecompositionBaseLog,
@@ -102,13 +131,13 @@ fn test_aes_eval_by_half_cbs(
 "==== AES evaluation by Half-CBS ====
 ---- CBS Param ----
 n: {}, N: {}, k: {}, l_glwe_ds: {}, B_glwe_ds: 2^{}
-l_pbs: {}, B_pbs: 2^{}, l_ggsw: {}, B_ggsw: 2^{}, LutCount: 2^{},
+l_pbs: {}, B_pbs: 2^{}, l_cbs: {}, B_cbs: 2^{}, LutCount: 2^{},
 l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{},
 ---- HalfCBS Param ----
-l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_ggsw: 2^{}
+l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_cbs: {}, B_cbs: 2^{}
 \n",
         lwe_dimension.0, polynomial_size.0, glwe_dimension.0, glwe_ds_level.0, glwe_ds_base_log.0,
-        pbs_level.0, pbs_base_log.0, ggsw_level.0, ggsw_base_log.0, log_lut_count.0,
+        pbs_level.0, pbs_base_log.0, cbs_level.0, cbs_base_log.0, log_lut_count.0,
         auto_level.0, auto_base_log.0, auto_fft_type, ss_level.0, ss_base_log.0,
         half_cbs_auto_level.0, half_cbs_auto_base_log.0, half_cbs_auto_fft_type, half_cbs_ss_level.0, half_cbs_ss_base_log.0, half_cbs_level.0, half_cbs_base_log.0,
     );
@@ -167,20 +196,47 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
     let glwe_size = glwe_sk.glwe_dimension().to_glwe_size();
     let large_lwe_size = lwe_sk.lwe_dimension().to_lwe_size();
 
+    let half_cbs_glwe_sk = allocate_and_generate_new_binary_glwe_secret_key(half_cbs_glwe_dimension, half_cbs_polynomial_size, &mut secret_generator);
+    let half_cbs_lwe_sk_view = GlweSecretKey::from_container(half_cbs_glwe_sk.as_ref(), common_polynomial_size);
+    let lwe_sk_after_ks_view = GlweSecretKey::from_container(lwe_sk_after_ks.as_ref(), common_polynomial_size);
+    let half_cbs_lwe_sk = half_cbs_glwe_sk.clone().into_lwe_secret_key();
+
+    let half_cbs_glwe_size = half_cbs_glwe_dimension.to_glwe_size();
+    let half_cbs_lwe_size = half_cbs_lwe_sk.lwe_dimension().to_lwe_size();
+
+    let half_cbs_standard_glwe_ksk = allocate_and_generate_new_glwe_keyswitch_key(
+        &half_cbs_lwe_sk_view,
+        &lwe_sk_after_ks_view,
+        half_cbs_glwe_ds_base_log,
+        half_cbs_glwe_ds_level,
+        lwe_modular_std_dev,
+        ciphertext_modulus,
+        &mut encryption_generator,
+    );
+    let mut half_cbs_glwe_ksk = FourierGlweKeyswitchKey::new(
+        half_cbs_lwe_sk_view.glwe_dimension().to_glwe_size(),
+        lwe_sk_after_ks_view.glwe_dimension().to_glwe_size(),
+        common_polynomial_size,
+        glwe_ds_base_log,
+        glwe_ds_level,
+        half_cbs_ds_fft_type,
+    );
+    convert_standard_glwe_keyswitch_key_to_fourier(&half_cbs_standard_glwe_ksk, &mut half_cbs_glwe_ksk);
+
     let half_cbs_auto_keys = gen_all_auto_keys(
         half_cbs_auto_base_log,
         half_cbs_auto_level,
         half_cbs_auto_fft_type,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         &mut encryption_generator,
     );
 
     let half_cbs_ss_key = generate_scheme_switching_key(
-        &glwe_sk,
+        &half_cbs_glwe_sk,
         half_cbs_ss_base_log,
         half_cbs_ss_level,
-        glwe_modular_std_dev,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
@@ -208,12 +264,27 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
     let num_bytes_to_print = 2;
     let mut he_round_keys = Vec::<LweCiphertextListOwned<u64>>::with_capacity(NUM_ROUNDS + 1);
     for r in 0..=NUM_ROUNDS {
-        let mut lwe_list_rk = LweCiphertextList::new(
-            0u64,
-            fourier_bsk.output_lwe_dimension().to_lwe_size(),
-            LweCiphertextCount(BLOCKSIZE_IN_BIT),
-            ciphertext_modulus,
-        );
+        let mut lwe_list_rk = if r <= 2 {
+            LweCiphertextList::new(
+                0u64,
+                half_cbs_lwe_size,
+                LweCiphertextCount(BLOCKSIZE_IN_BIT),
+                ciphertext_modulus,
+            )
+        } else {
+            LweCiphertextList::new(
+                0u64,
+                large_lwe_size,
+                LweCiphertextCount(BLOCKSIZE_IN_BIT),
+                ciphertext_modulus,
+            )
+        };
+        // let mut lwe_list_rk = LweCiphertextList::new(
+        //     0u64,
+        //     large_lwe_size,
+        //     LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        //     ciphertext_modulus,
+        // );
 
         let rk = PlaintextList::from_container((0..BLOCKSIZE_IN_BIT).map(|i| {
             let byte_idx = i / BYTESIZE;
@@ -222,32 +293,42 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             let round_key_bit = (round_key_byte & (1 << bit_idx)) >> bit_idx;
             (round_key_bit as u64) << 63
         }).collect::<Vec<u64>>());
-        encrypt_lwe_ciphertext_list(
-            &lwe_sk,
-            &mut lwe_list_rk,
-            &rk,
-            glwe_modular_std_dev,
-            &mut encryption_generator,
-        );
+        if r <= 2 {
+            encrypt_lwe_ciphertext_list(
+                &half_cbs_lwe_sk,
+                &mut lwe_list_rk,
+                &rk,
+                half_cbs_glwe_modular_std_dev,
+                &mut encryption_generator,
+            );
+        } else {
+            encrypt_lwe_ciphertext_list(
+                &lwe_sk,
+                &mut lwe_list_rk,
+                &rk,
+                glwe_modular_std_dev,
+                &mut encryption_generator,
+            );
+        }
 
         he_round_keys.push(lwe_list_rk);
     }
 
     let mut he_state = LweCiphertextList::new(
         0u64,
-        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        large_lwe_size,
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
     let mut he_state_mult_by_2 = LweCiphertextList::new(
         0u64,
-        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        large_lwe_size,
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
     let mut he_state_mult_by_3 = LweCiphertextList::new(
         0u64,
-        fourier_bsk.output_lwe_dimension().to_lwe_size(),
+        large_lwe_size,
         LweCiphertextCount(BLOCKSIZE_IN_BIT),
         ciphertext_modulus,
     );
@@ -258,14 +339,33 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
         ciphertext_modulus,
     );
 
+    let mut half_cbs_he_state = LweCiphertextList::new(
+        0u64,
+        half_cbs_lwe_size,
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        ciphertext_modulus,
+    );
+    let mut half_cbs_he_state_mult_by_2 = LweCiphertextList::new(
+        0u64,
+        half_cbs_lwe_size,
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        ciphertext_modulus,
+    );
+    let mut half_cbs_he_state_mult_by_3 = LweCiphertextList::new(
+        0u64,
+        half_cbs_lwe_size,
+        LweCiphertextCount(BLOCKSIZE_IN_BIT),
+        ciphertext_modulus,
+    );
+
     let mut lev_state = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
     let mut lev_state_mult_by_2 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
     let mut lev_state_mult_by_3 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
 
     for i in 0..BLOCKSIZE_IN_BIT {
-        lev_state.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
-        lev_state_mult_by_2.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
-        lev_state_mult_by_3.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+        lev_state.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+        lev_state_mult_by_2.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+        lev_state_mult_by_3.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
     }
 
     for (bit_idx, mut he_bit) in he_state.iter_mut().enumerate() {
@@ -278,8 +378,8 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
         aes.get_keyed_sbox(0),
         half_cbs_base_log,
         half_cbs_level,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
@@ -287,8 +387,8 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
         aes.get_keyed_sbox_mult_by_2(0),
         half_cbs_base_log,
         half_cbs_level,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
@@ -296,8 +396,8 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
         aes.get_keyed_sbox_mult_by_3(0),
         half_cbs_base_log,
         half_cbs_level,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
@@ -305,24 +405,24 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
     let vec_keyed_sbox_acc_round_2 = generate_vec_keyed_lut_accumulator(
         aes.get_keyed_sbox(1),
         u64::BITS as usize - 1,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
     let vec_keyed_sbox_mult_by_2_acc_round_2 = generate_vec_keyed_lut_accumulator(
         aes.get_keyed_sbox_mult_by_2(1),
         u64::BITS as usize - 1,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
     let vec_keyed_sbox_mult_by_3_acc_round_2 = generate_vec_keyed_lut_accumulator(
         aes.get_keyed_sbox_mult_by_3(1),
         u64::BITS as usize - 1,
-        &glwe_sk,
-        glwe_modular_std_dev,
+        &half_cbs_glwe_sk,
+        half_cbs_glwe_modular_std_dev,
         ciphertext_modulus,
         &mut encryption_generator,
     );
@@ -360,7 +460,7 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             aes.sub_bytes(&mut state);
 
             int_state = byte_mat_to_bit_array(state);
-            let (vec_err, max_err) = get_lev_int_state_error(&lev_state, int_state, half_cbs_base_log, &lwe_sk);
+            let (vec_err, max_err) = get_lev_int_state_error(&lev_state, int_state, half_cbs_base_log, &half_cbs_lwe_sk);
             print!("  - KeyedLUT:");
             for err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
                 print!(" {:>2}", err.ilog2());
@@ -384,7 +484,7 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             int_state = mix_columns_integer(state);
             aes.mix_columns(&mut state);
 
-            let (vec_err, max_err) = get_lev_int_state_error(&lev_state, int_state, half_cbs_base_log, &lwe_sk);
+            let (vec_err, max_err) = get_lev_int_state_error(&lev_state, int_state, half_cbs_base_log, &half_cbs_lwe_sk);
             print!("  - SR & MR :");
             for err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
                 print!(" {:>2}", err.ilog2());
@@ -397,7 +497,7 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             println!("Round {r}: HalfCBS input -> LWE output");
             // Keyed LUT
             let now = Instant::now();
-            let mut ggsw_state = GgswCiphertextList::new(0u64, glwe_size, polynomial_size, half_cbs_base_log, half_cbs_level, GgswCiphertextCount(BLOCKSIZE_IN_BIT), ciphertext_modulus);
+            let mut ggsw_state = GgswCiphertextList::new(0u64, half_cbs_glwe_size, half_cbs_polynomial_size, half_cbs_base_log, half_cbs_level, GgswCiphertextCount(BLOCKSIZE_IN_BIT), ciphertext_modulus);
 
             convert_lev_state_to_ggsw(
                 &lev_state,
@@ -411,7 +511,7 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             let mut max_err = 0u64;
             for (correct_val, ggsw) in int_state.iter().zip(ggsw_state.iter()) {
                 let correct_val = *correct_val as u64;
-                let err = get_max_err_ggsw_int(&glwe_sk, &ggsw, correct_val);
+                let err = get_max_err_ggsw_int(&half_cbs_glwe_sk, &ggsw, correct_val);
 
                 vec_err.push(err);
                 max_err = std::cmp::max(max_err, err);
@@ -428,16 +528,16 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
                 &vec_keyed_sbox_acc_round_2,
                 &vec_keyed_sbox_mult_by_2_acc_round_2,
                 &vec_keyed_sbox_mult_by_3_acc_round_2,
-                &mut he_state,
-                &mut he_state_mult_by_2,
-                &mut he_state_mult_by_3,
+                &mut half_cbs_he_state,
+                &mut half_cbs_he_state_mult_by_2,
+                &mut half_cbs_he_state_mult_by_3,
             );
             time_sub_bytes += now.elapsed();
 
             aes.add_round_key(&mut state, 1);
             aes.sub_bytes(&mut state);
 
-            let (vec_err, max_err) = get_he_state_error(&he_state, state, &lwe_sk);
+            let (vec_err, max_err) = get_he_state_error(&half_cbs_he_state, state, &half_cbs_lwe_sk);
 
             print!("  - KeyedLUT:");
             for bit_err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
@@ -447,21 +547,21 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
 
             // ShiftRows and MixColumns
             let now = Instant::now();
-            he_shift_rows(&mut he_state);
-            he_shift_rows(&mut he_state_mult_by_2);
-            he_shift_rows(&mut he_state_mult_by_3);
+            he_shift_rows(&mut half_cbs_he_state);
+            he_shift_rows(&mut half_cbs_he_state_mult_by_2);
+            he_shift_rows(&mut half_cbs_he_state_mult_by_3);
 
             he_mix_columns_precomp(
-                &mut he_state,
-                &he_state_mult_by_2,
-                &he_state_mult_by_3,
+                &mut half_cbs_he_state,
+                &half_cbs_he_state_mult_by_2,
+                &half_cbs_he_state_mult_by_3,
             );
             time_linear += now.elapsed();
 
             aes.shift_rows(&mut state);
             aes.mix_columns(&mut state);
 
-            let (vec_err, max_err) = get_he_state_error(&he_state, state, &lwe_sk);
+            let (vec_err, max_err) = get_he_state_error(&half_cbs_he_state, state, &half_cbs_lwe_sk);
 
             print!("  - SR & MC :");
             for bit_err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
@@ -471,11 +571,11 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
 
             // AddRoundKey
             let now = Instant::now();
-            he_add_round_key(&mut he_state, &he_round_keys[r]);
+            he_add_round_key(&mut half_cbs_he_state, &he_round_keys[r]);
             time_linear += now.elapsed();
 
             aes.add_round_key(&mut state, r);
-            let (vec_err, max_err) = get_he_state_error(&he_state, state, &lwe_sk);
+            let (vec_err, max_err) = get_he_state_error(&half_cbs_he_state, state, &half_cbs_lwe_sk);
             print!("  - ARK     :");
             for bit_err in vec_err.iter().take(BYTESIZE * num_bytes_to_print) {
                 print!(" {bit_err:>2}");
@@ -488,12 +588,22 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
             println!("Round {r}: CBS-based");
             // LWE KS
             let now = Instant::now();
-            for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-                keyswitch_lwe_ciphertext_by_glwe_keyswitch(
-                    &lwe,
-                    &mut lwe_ks,
-                    &glwe_ksk,
-                );
+            if r == 3 {
+                for (lwe, mut lwe_ks) in half_cbs_he_state.iter().zip(he_state_ks.iter_mut()) {
+                    keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                        &lwe,
+                        &mut lwe_ks,
+                        &half_cbs_glwe_ksk,
+                    );
+                }
+            } else {
+                for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
+                    keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                        &lwe,
+                        &mut lwe_ks,
+                        &glwe_ksk,
+                    );
+                }
             }
             time_lwe_ks += now.elapsed();
 
@@ -503,6 +613,40 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
                 print!(" {bit_err:>2}");
             }
             println!(" ... (max: {:.3})", (max_err as f64).log2());
+
+            let bit_state = byte_mat_to_bit_array(state);
+            print!("  - CBS     :");
+            let mut max_err = 0u64;
+            for (i, lwe) in he_state_ks.iter().enumerate() {
+                let mut glev = GlweCiphertextList::new(0u64, glwe_size, polynomial_size, GlweCiphertextCount(cbs_level.0), ciphertext_modulus);
+                let glev_mut_view = GlweCiphertextListMutView::from_container(
+                    glev.as_mut(),
+                    glwe_size,
+                    polynomial_size,
+                    ciphertext_modulus,
+                );
+                lwe_msb_bit_to_glev_by_trace_with_preprocessing(
+                    lwe.as_view(),
+                    glev_mut_view,
+                    fourier_bsk,
+                    &auto_keys,
+                    cbs_base_log,
+                    cbs_level,
+                    log_lut_count,
+                );
+
+                let mut ggsw = GgswCiphertext::new(0u64, glwe_size, polynomial_size, cbs_base_log, cbs_level, ciphertext_modulus);
+                switch_scheme(&glev, &mut ggsw, ss_key);
+
+                let correct_val = bit_state[i] as u64;
+                let err = get_max_err_ggsw_int(&glwe_sk, &ggsw, correct_val);
+                max_err = std::cmp::max(max_err, err);
+                if i < 16 {
+                    print!(" {}", err.ilog2());
+                }
+            }
+            print!(" ... (max: {:.3})", (max_err as f64).log2());
+            println!();
 
             // SubBytes
             let now = Instant::now();
@@ -514,8 +658,8 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
                 fourier_bsk,
                 &auto_keys,
                 ss_key,
-                ggsw_base_log,
-                ggsw_level,
+                cbs_base_log,
+                cbs_level,
                 log_lut_count,
             );
             time_sub_bytes += now.elapsed();
@@ -582,8 +726,8 @@ l_auto: {}, B_auto: 2^{}, fft_auto: {:?}, l_ss: {}, B_ss: 2^{}, l_ggsw: {}, B_gg
         fourier_bsk,
         &auto_keys,
         ss_key,
-        ggsw_base_log,
-        ggsw_level,
+        cbs_base_log,
+        cbs_level,
         log_lut_count,
     );
     time_sub_bytes += now.elapsed();

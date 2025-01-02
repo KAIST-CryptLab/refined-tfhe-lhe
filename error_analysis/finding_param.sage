@@ -2,6 +2,7 @@ import argparse
 from prettytable import PrettyTable
 
 load("var.sage")
+load("param.sage")
 
 def optimize_log_B_ks(N, k, n, log_q, Var_LWE, l_ks):
     q = 2^log_q
@@ -58,6 +59,42 @@ def optimize_log_B_pbs(N, k, n, log_q, Var_GLWE, l_pbs):
             Var_next_tot += get_var_fft_pbs(N, k, n, 2^next, l_pbs)
 
     return cur
+
+def optimize_log_B_tr_without_split(N, k, log_q, Var_GLWE, l_tr):
+    q = 2^log_q
+    cur = log_q // 2
+
+    # Optimize B_tr by Var_tr
+    while cur < log_q:
+        Var_cur_gadget = get_var_glwe_ks_gadget(N, k, q, 2^cur, l_tr)
+        Var_cur_key = get_var_glwe_ks_key(N, k, q, Var_GLWE, 2^cur, l_tr)
+        Var_cur = get_var_tr(N, k, q, Var_GLWE, 2^cur, l_tr)
+
+        next = cur + 1 if Var_cur_gadget > Var_cur_key else cur - 1
+        Var_next = get_var_tr(N, k, q, Var_GLWE, 2^next, l_tr)
+
+        if Var_next > Var_cur:
+            break
+
+        cur = next
+
+    # Optimize B_tr by Var_tr + Var_fft_tr
+    Var_fft_cur = get_var_fft_tr(N, k, 2^cur, l_tr, 64)
+    if Var_cur < Var_fft_cur:
+        Var_cur_tot = 0
+        Var_next_tot = -1
+        next = cur
+
+        while Var_cur_tot > Var_next_tot:
+            cur = next
+            Var_cur_tot = get_var_tr(N, k, q, Var_GLWE, 2^cur, l_tr)
+            Var_cur_tot += get_var_fft_tr(N, k, 2^cur, l_tr, 64)
+
+            next = cur - 1
+            Var_next_tot = get_var_tr(N, k, q, Var_GLWE, 2^next, l_tr)
+            Var_next_tot += get_var_fft_tr(N, k, 2^next, l_tr, 64)
+
+    return cur, 64
 
 def optimize_log_B_tr(N, k, log_q, Var_GLWE, l_tr, split_limit):
     q = 2^log_q
@@ -180,17 +217,18 @@ def optimize_log_B_cbs(N, k, q, Var_cbs, l_cbs):
     return cur
 
 parser = argparse.ArgumentParser(prog='sage finding_param.sage', description='finding appropriate decomposition base logs under the given TFHE parameters and decomposition levels')
-parser.add_argument('-n', nargs=1, type=int, default=[571], help='n, default to 571')
-parser.add_argument('-lwe', nargs=1, type=float, default=[1.953125e-4], help='LWE std dev, default to 1.953125e-4')
+parser.add_argument('-n', nargs=1, type=int, default=[636], help='n, default to 636')
+parser.add_argument('-lwe', nargs=1, type=float, default=[stddev_636], help='LWE std dev, default to 9.25119974676756e-5 that corresponds to default n = 636')
 parser.add_argument('-k', nargs=1, type=int, default=[1], help='k, default to 1')
 parser.add_argument('-N', nargs=1, type=int, default=[2048], help='N, default to 2048')
-parser.add_argument('-glwe', nargs=1, type=float, default=[1.7763568e-16], help='GLWE std dev, default to 1.7763568e-16')
+parser.add_argument('-glwe', nargs=1, type=float, default=[stddev_2048], help='GLWE std dev, default to 9.25119974676756e-16 that corresponds to default (N, k) = (2048, 1)')
 parser.add_argument('-log_q', nargs=1, type=int, default=[64], help='log q, default to 64')
 parser.add_argument('-t', nargs=1, type=int, default=[2], help='vartheta, default to 2')
-parser.add_argument('-l', nargs=5, type=int, help='decomposition levels: [pbs, ks, tr, ss, cbs]')
+parser.add_argument('-l', nargs=5, type=int, help='decomposition levels: [ks, pbs, tr, ss, cbs]')
 parser.add_argument('-B', nargs=6, type=int, help='log of decomposition bases: [pbs, ks, tr, split, ss, cbs]')
-parser.add_argument('-sp', nargs=1, type=int, default=[-2000], help='log of f.p. of split fft, default to 2000')
-parser.add_argument('-thrs', nargs='?', type=int, default=[-32, -80, -128], help='log of threshold f.p., default to [-32, -80, -128]')
+parser.add_argument('-sp', nargs=1, type=int, default=[-256], help='log of f.p. of split fft, default to 256')
+parser.add_argument('-thrs', nargs=1, type=int, default=[-40], help='log of threshold f.p., default to -40]')
+parser.add_argument('-ns', action="store_true", help='do not use split FFT for HomTrace')
 
 if __name__ == '__main__':
     args = parser.parse_args()
@@ -205,6 +243,7 @@ if __name__ == '__main__':
     split_limit = args.sp[0]
     is_opt = args.B is None
     log_fp_thrs_list = args.thrs
+    is_no_split_fft = True if args.ns else False
 
     print(f"LWE Dimension (-n):\t{n}")
     print(f"LWE Std. Dev (-lwe):\t{sigma_lwe:.5e}")
@@ -223,7 +262,6 @@ if __name__ == '__main__':
 
     Var_LWE = sigma_lwe^2
     Var_GLWE = sigma_glwe^2
-    # log_fp_thrs_list = [-32, -80, -128]
 
     if is_opt:
         log_B_ks = optimize_log_B_ks(N, k, n, log_q, Var_LWE, l_ks)
@@ -232,7 +270,10 @@ if __name__ == '__main__':
         log_B_pbs = optimize_log_B_pbs(N, k, n, log_q, Var_GLWE, l_pbs)
         B_pbs = 2^log_B_pbs
 
-        log_B_tr, log_b_tr = optimize_log_B_tr(N, k, log_q, Var_GLWE, l_tr, split_limit)
+        if is_no_split_fft:
+            log_B_tr, log_b_tr = optimize_log_B_tr_without_split(N, k, log_q, Var_GLWE, l_tr)
+        else:
+            log_B_tr, log_b_tr = optimize_log_B_tr(N, k, log_q, Var_GLWE, l_tr, split_limit)
         B_tr = 2^log_B_tr
         b_tr = 2^log_b_tr
 

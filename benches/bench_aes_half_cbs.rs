@@ -2,12 +2,12 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion, Benchmark
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 use auto_base_conv::{
-    aes_instances::*, automorphism::gen_all_auto_keys, blind_rotate_keyed_sboxes, byte_array_to_mat, convert_lev_state_to_ggsw, generate_scheme_switching_key, generate_vec_keyed_lut_accumulator, generate_vec_keyed_lut_glev, get_he_state_error, he_add_round_key, he_mix_columns_precomp, he_shift_rows, he_sub_bytes_8_to_24_by_patched_wwlp_cbs, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut_for_half_cbs, lev_mix_columns_precomp, lev_shift_rows, Aes128Ref, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
+    aes_instances::*, allocate_and_generate_new_glwe_keyswitch_key, automorphism::gen_all_auto_keys, blind_rotate_keyed_sboxes, convert_lev_state_to_ggsw, convert_standard_glwe_keyswitch_key_to_fourier, generate_scheme_switching_key, generate_vec_keyed_lut_accumulator, generate_vec_keyed_lut_glev, he_add_round_key, he_mix_columns_precomp, he_shift_rows, he_sub_bytes_8_to_24_by_patched_wwlp_cbs, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut_for_half_cbs, lev_mix_columns_precomp, lev_shift_rows, Aes128Ref, FourierGlweKeyswitchKey, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(1000);
+    config = Criterion::default().sample_size(10);
     targets =
         criterion_benchmark_aes_half_cbs,
 );
@@ -17,7 +17,8 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
     let mut group = c.benchmark_group("aes evaluation by patched WWL+ circuit bootstrapping");
 
     let param_list = [
-        (*AES_HALF_CBS, "HalfCBS"),
+        (*AES_HALF_CBS_SET_1, "AES HalfCBS SET 1"),
+        (*AES_HALF_CBS_SET_2, "AES HalfCBS SET 2"),
     ];
 
     for (param, id) in param_list.iter() {
@@ -41,6 +42,13 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
         let cbs_level = param.cbs_level();
         let log_lut_count = param.log_lut_count();
         let ciphertext_modulus = param.ciphertext_modulus();
+
+        let half_cbs_glwe_dimension = param.half_cbs_glwe_dimension();
+        let half_cbs_polynomial_size = param.half_cbs_polynomial_size();
+        let half_cbs_glwe_modular_std_dev = param.half_cbs_glwe_modular_std_dev();
+        let half_cbs_glwe_ds_base_log = param.half_cbs_glwe_ds_base_log();
+        let half_cbs_glwe_ds_level = param.half_cbs_glwe_ds_level();
+        let half_cbs_fft_type_ds = param.half_cbs_fft_type_ds();
         let half_cbs_auto_base_log = param.half_cbs_auto_base_log();
         let half_cbs_auto_level = param.half_cbs_auto_level();
         let half_cbs_fft_type_auto = param.half_cbs_fft_type_auto();
@@ -48,6 +56,22 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
         let half_cbs_ss_level = param.half_cbs_ss_level();
         let half_cbs_base_log = param.half_cbs_base_log();
         let half_cbs_level = param.half_cbs_level();
+
+        println!(
+            "n: {}, lwe_std_dev: {}, N_common: {},
+(HalfCBS),
+k: {}, N: {}, glwe_std_dev: {}, B_ds: 2^{}, l_ds: 2^{}, fft_ds: {:?},
+B_auto: 2^{}, l_auto: {}, fft_auto: {:?}, B_ss: 2^{}, l_ss: {}, B_cbs: 2^{}, l_cbs: {},
+(CBS),
+k: {}, N: {}, glwe_std_dev: {}, B_ds: 2^{}, l_ds: 2^{}, fft_type_ds: {:?},
+B_auto: 2^{}, l_auto: {}, fft_auto: {:?}, B_ss: 2^{}, l_ss: {}, B_cbs: 2^{}, l_cbs: {}, log_lut_count: {}",
+            lwe_dimension.0, lwe_modular_std_dev.0, common_polynomial_size.0,
+            half_cbs_glwe_dimension.0, half_cbs_polynomial_size.0, half_cbs_glwe_modular_std_dev.0, half_cbs_glwe_ds_base_log.0, half_cbs_glwe_ds_level.0, half_cbs_fft_type_ds,
+            half_cbs_auto_base_log.0, half_cbs_auto_level.0, half_cbs_fft_type_auto, half_cbs_ss_base_log.0, half_cbs_ss_level.0, half_cbs_base_log.0, half_cbs_level.0,
+            glwe_dimension.0, polynomial_size.0, glwe_modular_std_dev.0, glwe_ds_base_log.0, glwe_ds_level.0, fft_type_ds,
+            auto_base_log.0, auto_level.0, fft_type_auto, ss_base_log.0, ss_level.0, cbs_base_log.0, cbs_level.0, log_lut_count.0,
+        );
+        println!();
 
         // Set random generators and buffers
         let mut boxed_seeder = new_seeder();
@@ -100,26 +124,53 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
             &mut encryption_generator,
         );
 
+        let half_cbs_glwe_sk = allocate_and_generate_new_binary_glwe_secret_key(half_cbs_glwe_dimension, half_cbs_polynomial_size, &mut secret_generator);
+        let half_cbs_lwe_sk = half_cbs_glwe_sk.clone().into_lwe_secret_key();
+
+        let half_cbs_glwe_size = half_cbs_glwe_dimension.to_glwe_size();
+        let half_cbs_lwe_size = half_cbs_lwe_sk.lwe_dimension().to_lwe_size();
+
+        let half_cbs_lwe_sk_view = GlweSecretKey::from_container(half_cbs_glwe_sk.as_ref(), common_polynomial_size);
+        let lwe_sk_after_ks_view = GlweSecretKey::from_container(lwe_sk_after_ks.as_ref(), common_polynomial_size);
+
+        let half_cbs_standard_glwe_ksk = allocate_and_generate_new_glwe_keyswitch_key(
+            &half_cbs_lwe_sk_view,
+            &lwe_sk_after_ks_view,
+            half_cbs_glwe_ds_base_log,
+            half_cbs_glwe_ds_level,
+            half_cbs_glwe_modular_std_dev,
+            ciphertext_modulus,
+            &mut encryption_generator,
+        );
+        let mut half_cbs_glwe_ksk = FourierGlweKeyswitchKey::new(
+            half_cbs_lwe_sk_view.glwe_dimension().to_glwe_size(),
+            lwe_sk_after_ks_view.glwe_dimension().to_glwe_size(),
+            common_polynomial_size,
+            half_cbs_glwe_ds_base_log,
+            half_cbs_glwe_ds_level,
+            half_cbs_fft_type_ds,
+        );
+        convert_standard_glwe_keyswitch_key_to_fourier(&half_cbs_standard_glwe_ksk, &mut half_cbs_glwe_ksk);
+
         let half_cbs_auto_keys = gen_all_auto_keys(
             half_cbs_auto_base_log,
             half_cbs_auto_level,
             half_cbs_fft_type_auto,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             &mut encryption_generator,
         );
 
         let half_cbs_ss_key = generate_scheme_switching_key(
-            &glwe_sk,
+            &half_cbs_glwe_sk,
             half_cbs_ss_base_log,
             half_cbs_ss_level,
-            glwe_modular_std_dev,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
         let half_cbs_ss_key = half_cbs_ss_key.as_view();
 
-        let glwe_size = glwe_sk.glwe_dimension().to_glwe_size();
         let large_lwe_size = lwe_sk.lwe_dimension().to_lwe_size();
 
         // ======== Plain ========
@@ -136,17 +187,25 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
         for i in 0..16 {
             message[i] = rng.gen_range(0..=255);
         }
-        let correct_output = byte_array_to_mat(aes.encrypt_block(message));
 
         // ======== HE ========
         let mut he_round_keys = Vec::<LweCiphertextListOwned<u64>>::with_capacity(NUM_ROUNDS + 1);
         for r in 0..=NUM_ROUNDS {
-            let mut lwe_list_rk = LweCiphertextList::new(
-                0u64,
-                fourier_bsk.output_lwe_dimension().to_lwe_size(),
-                LweCiphertextCount(BLOCKSIZE_IN_BIT),
-                ciphertext_modulus,
-            );
+            let mut lwe_list_rk = if r <= 2 {
+                LweCiphertextList::new(
+                    0u64,
+                    half_cbs_lwe_size,
+                    LweCiphertextCount(BLOCKSIZE_IN_BIT),
+                    ciphertext_modulus,
+                )
+            } else {
+                LweCiphertextList::new(
+                    0u64,
+                    large_lwe_size,
+                    LweCiphertextCount(BLOCKSIZE_IN_BIT),
+                    ciphertext_modulus,
+                )
+            };
 
             let rk = PlaintextList::from_container((0..BLOCKSIZE_IN_BIT).map(|i| {
                 let byte_idx = i / BYTESIZE;
@@ -155,32 +214,42 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                 let round_key_bit = (round_key_byte & (1 << bit_idx)) >> bit_idx;
                 (round_key_bit as u64) << 63
             }).collect::<Vec<u64>>());
-            encrypt_lwe_ciphertext_list(
-                &lwe_sk,
-                &mut lwe_list_rk,
-                &rk,
-                glwe_modular_std_dev,
-                &mut encryption_generator,
-            );
+            if r <= 2 {
+                encrypt_lwe_ciphertext_list(
+                    &half_cbs_lwe_sk,
+                    &mut lwe_list_rk,
+                    &rk,
+                    half_cbs_glwe_modular_std_dev,
+                    &mut encryption_generator,
+                );
+            } else {
+                encrypt_lwe_ciphertext_list(
+                    &lwe_sk,
+                    &mut lwe_list_rk,
+                    &rk,
+                    glwe_modular_std_dev,
+                    &mut encryption_generator,
+                );
+            }
 
             he_round_keys.push(lwe_list_rk);
         }
 
         let mut he_state = LweCiphertextList::new(
             0u64,
-            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            large_lwe_size,
             LweCiphertextCount(BLOCKSIZE_IN_BIT),
             ciphertext_modulus,
         );
         let mut he_state_mult_by_2 = LweCiphertextList::new(
             0u64,
-            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            large_lwe_size,
             LweCiphertextCount(BLOCKSIZE_IN_BIT),
             ciphertext_modulus,
         );
         let mut he_state_mult_by_3 = LweCiphertextList::new(
             0u64,
-            fourier_bsk.output_lwe_dimension().to_lwe_size(),
+            large_lwe_size,
             LweCiphertextCount(BLOCKSIZE_IN_BIT),
             ciphertext_modulus,
         );
@@ -191,14 +260,33 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
             ciphertext_modulus,
         );
 
+        let mut half_cbs_he_state = LweCiphertextList::new(
+            0u64,
+            half_cbs_lwe_size,
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+        let mut half_cbs_he_state_mult_by_2 = LweCiphertextList::new(
+            0u64,
+            half_cbs_lwe_size,
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+        let mut half_cbs_he_state_mult_by_3 = LweCiphertextList::new(
+            0u64,
+            half_cbs_lwe_size,
+            LweCiphertextCount(BLOCKSIZE_IN_BIT),
+            ciphertext_modulus,
+        );
+
         let mut lev_state = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
         let mut lev_state_mult_by_2 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
         let mut lev_state_mult_by_3 = Vec::<LweCiphertextListOwned<u64>>::with_capacity(BLOCKSIZE_IN_BIT);
 
         for _ in 0..BLOCKSIZE_IN_BIT {
-            lev_state.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
-            lev_state_mult_by_2.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
-            lev_state_mult_by_3.push(LweCiphertextList::new(0u64, large_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+            lev_state.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+            lev_state_mult_by_2.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
+            lev_state_mult_by_3.push(LweCiphertextList::new(0u64, half_cbs_lwe_size, LweCiphertextCount(half_cbs_level.0), ciphertext_modulus));
         }
 
         for (bit_idx, mut he_bit) in he_state.iter_mut().enumerate() {
@@ -211,8 +299,8 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
             aes.get_keyed_sbox(0),
             half_cbs_base_log,
             half_cbs_level,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
@@ -220,8 +308,8 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
             aes.get_keyed_sbox_mult_by_2(0),
             half_cbs_base_log,
             half_cbs_level,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
@@ -229,8 +317,8 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
             aes.get_keyed_sbox_mult_by_3(0),
             half_cbs_base_log,
             half_cbs_level,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
@@ -238,24 +326,24 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
         let vec_keyed_sbox_acc_round_2 = generate_vec_keyed_lut_accumulator(
             aes.get_keyed_sbox(1),
             u64::BITS as usize - 1,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
         let vec_keyed_sbox_mult_by_2_acc_round_2 = generate_vec_keyed_lut_accumulator(
             aes.get_keyed_sbox_mult_by_2(1),
             u64::BITS as usize - 1,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
         let vec_keyed_sbox_mult_by_3_acc_round_2 = generate_vec_keyed_lut_accumulator(
             aes.get_keyed_sbox_mult_by_3(1),
             u64::BITS as usize - 1,
-            &glwe_sk,
-            glwe_modular_std_dev,
+            &half_cbs_glwe_sk,
+            half_cbs_glwe_modular_std_dev,
             ciphertext_modulus,
             &mut encryption_generator,
         );
@@ -321,7 +409,7 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                     id,
                 ),
                 |b| b.iter(|| {
-                    let mut ggsw_state = GgswCiphertextList::new(0u64, glwe_size, polynomial_size, half_cbs_base_log, half_cbs_level, GgswCiphertextCount(BLOCKSIZE_IN_BIT), ciphertext_modulus);
+                    let mut ggsw_state = GgswCiphertextList::new(0u64, half_cbs_glwe_size, half_cbs_polynomial_size, half_cbs_base_log, half_cbs_level, GgswCiphertextCount(BLOCKSIZE_IN_BIT), ciphertext_modulus);
 
                     convert_lev_state_to_ggsw(
                         black_box(&lev_state),
@@ -335,9 +423,9 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                         black_box(&vec_keyed_sbox_acc_round_2),
                         black_box(&vec_keyed_sbox_mult_by_2_acc_round_2),
                         black_box(&vec_keyed_sbox_mult_by_3_acc_round_2),
-                        black_box(&mut he_state),
-                        black_box(&mut he_state_mult_by_2),
-                        black_box(&mut he_state_mult_by_3),
+                        black_box(&mut half_cbs_he_state),
+                        black_box(&mut half_cbs_he_state_mult_by_2),
+                        black_box(&mut half_cbs_he_state_mult_by_3),
                     );
                 }),
             );
@@ -349,17 +437,17 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                     id,
                 ),
                 |b| b.iter(|| {
-                    he_shift_rows(black_box(&mut he_state));
-                    he_shift_rows(black_box(&mut he_state_mult_by_2));
-                    he_shift_rows(black_box(&mut he_state_mult_by_3));
+                    he_shift_rows(black_box(&mut half_cbs_he_state));
+                    he_shift_rows(black_box(&mut half_cbs_he_state_mult_by_2));
+                    he_shift_rows(black_box(&mut half_cbs_he_state_mult_by_3));
 
                     he_mix_columns_precomp(
-                        black_box(&mut he_state),
-                        black_box(&he_state_mult_by_2),
-                        black_box(&he_state_mult_by_3),
+                        black_box(&mut half_cbs_he_state),
+                        black_box(&half_cbs_he_state_mult_by_2),
+                        black_box(&half_cbs_he_state_mult_by_3),
                     );
 
-                    he_add_round_key(black_box(&mut he_state), black_box(&he_round_keys[2]));
+                    he_add_round_key(black_box(&mut half_cbs_he_state), black_box(&he_round_keys[2]));
                 }),
             );
         }
@@ -372,12 +460,22 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                     id,
                 ),
                 |b| b.iter(|| {
-                    for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
-                        keyswitch_lwe_ciphertext_by_glwe_keyswitch(
-                            black_box(&lwe),
-                            black_box(&mut lwe_ks),
-                            black_box(&fourier_ksk),
-                        );
+                    if r == 3 {
+                        for (lwe, mut lwe_ks) in half_cbs_he_state.iter().zip(he_state_ks.iter_mut()) {
+                            keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                                black_box(&lwe),
+                                black_box(&mut lwe_ks),
+                                black_box(&half_cbs_glwe_ksk),
+                            );
+                        }
+                    } else {
+                        for (lwe, mut lwe_ks) in he_state.iter().zip(he_state_ks.iter_mut()) {
+                            keyswitch_lwe_ciphertext_by_glwe_keyswitch(
+                                black_box(&lwe),
+                                black_box(&mut lwe_ks),
+                                black_box(&fourier_ksk),
+                            );
+                        }
                     }
                 })
             );
@@ -481,19 +579,5 @@ fn criterion_benchmark_aes_half_cbs(c: &mut Criterion) {
                 he_add_round_key(&mut he_state, &he_round_keys[NUM_ROUNDS]);
             })
         );
-
-        let (_, max_err) = get_he_state_error(&he_state, correct_output, &lwe_sk);
-
-        println!(
-            "n: {}, N: {}, k: {}, l_pbs: {}, B_pbs: 2^{}, l_cbs: {}, B_cbs: 2^{}
-B_ds: 2^{}, l_ds: {},
-l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}, log_lut_count: {},
-max err: {:.2} bits",
-            lwe_dimension.0, polynomial_size.0, glwe_dimension.0, pbs_level.0, pbs_base_log.0, cbs_level.0, cbs_base_log.0,
-            glwe_ds_base_log.0, glwe_ds_level.0,
-            auto_level.0, auto_base_log.0, ss_level.0, ss_base_log.0, log_lut_count.0,
-            (max_err as f64).log2(),
-        );
-        println!();
     }
 }

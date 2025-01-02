@@ -178,6 +178,12 @@ pub struct AesHalfCBSParam<Scalar: UnsignedInteger> {
     cbs_level: DecompositionLevelCount,
     log_lut_count: LutCountLog,
     ciphertext_modulus: CiphertextModulus::<Scalar>,
+    half_cbs_glwe_dimension: GlweDimension,
+    half_cbs_polynomial_size: PolynomialSize,
+    half_cbs_glwe_modular_std_dev: StandardDev,
+    half_cbs_glwe_ds_base_log: DecompositionBaseLog,
+    half_cbs_glwe_ds_level: DecompositionLevelCount,
+    half_cbs_fft_type_ds: FftType,
     half_cbs_auto_base_log: DecompositionBaseLog,
     half_cbs_auto_level: DecompositionLevelCount,
     half_cbs_fft_type_auto: FftType,
@@ -209,6 +215,12 @@ impl<Scalar: UnsignedInteger> AesHalfCBSParam<Scalar> {
         cbs_level: DecompositionLevelCount,
         log_lut_count: LutCountLog,
         ciphertext_modulus: CiphertextModulus::<Scalar>,
+        half_cbs_glwe_dimension: GlweDimension,
+        half_cbs_polynomial_size: PolynomialSize,
+        half_cbs_glwe_modular_std_dev: StandardDev,
+        half_cbs_glwe_ds_base_log: DecompositionBaseLog,
+        half_cbs_glwe_ds_level: DecompositionLevelCount,
+        half_cbs_fft_type_ds: FftType,
         half_cbs_auto_base_log: DecompositionBaseLog,
         half_cbs_auto_level: DecompositionLevelCount,
         half_cbs_fft_type_auto: FftType,
@@ -241,6 +253,12 @@ impl<Scalar: UnsignedInteger> AesHalfCBSParam<Scalar> {
             cbs_level,
             log_lut_count,
             ciphertext_modulus,
+            half_cbs_glwe_dimension,
+            half_cbs_polynomial_size,
+            half_cbs_glwe_modular_std_dev,
+            half_cbs_glwe_ds_base_log,
+            half_cbs_glwe_ds_level,
+            half_cbs_fft_type_ds,
             half_cbs_auto_base_log,
             half_cbs_auto_level,
             half_cbs_fft_type_auto,
@@ -329,6 +347,30 @@ impl<Scalar: UnsignedInteger> AesHalfCBSParam<Scalar> {
 
     pub fn ciphertext_modulus(&self) -> CiphertextModulus::<Scalar> {
         self.ciphertext_modulus
+    }
+
+    pub fn half_cbs_glwe_dimension(&self) -> GlweDimension {
+        self.half_cbs_glwe_dimension
+    }
+
+    pub fn half_cbs_polynomial_size(&self) -> PolynomialSize {
+        self.half_cbs_polynomial_size
+    }
+
+    pub fn half_cbs_glwe_modular_std_dev(&self) -> StandardDev {
+        self.half_cbs_glwe_modular_std_dev
+    }
+
+    pub fn half_cbs_glwe_ds_base_log(&self) -> DecompositionBaseLog {
+        self.half_cbs_glwe_ds_base_log
+    }
+
+    pub fn half_cbs_glwe_ds_level(&self) -> DecompositionLevelCount {
+        self.half_cbs_glwe_ds_level
+    }
+
+    pub fn half_cbs_fft_type_ds(&self) -> FftType {
+        self.half_cbs_fft_type_ds
     }
 
     pub fn half_cbs_auto_base_log(&self) -> DecompositionBaseLog {
