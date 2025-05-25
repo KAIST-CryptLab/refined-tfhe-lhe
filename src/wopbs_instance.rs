@@ -5,6 +5,24 @@ use tfhe::core_crypto::prelude::*;
 use lazy_static::lazy_static;
 
 lazy_static! {
+    pub static ref WOPBS_1_1: WopbsParam<u64> = WopbsParam::new(
+        LweDimension(653), // lwe_dimension
+        StandardDev(0.00003604499526942373), // lwe_modular_std_dev
+        PolynomialSize(2048), // polynomial_size
+        GlweDimension(1), // glwe_dimension
+        StandardDev(0.00000000000000029403601535432533), // glwe_modular_std_dev
+        DecompositionBaseLog(15), // pbs_base_log
+        DecompositionLevelCount(2), // pbs_level
+        DecompositionBaseLog(5), // ks_base_log
+        DecompositionLevelCount(2), // ks_level
+        DecompositionBaseLog(15), // pfks_base_log
+        DecompositionLevelCount(2), // pfks_base_log
+        DecompositionBaseLog(5), // cbs_base_log
+        DecompositionLevelCount(3), // cbs_level
+        CiphertextModulus::<u64>::new_native(), // ciphertext_modulus
+        2,
+    );
+
     pub static ref WOPBS_2_2: WopbsParam<u64> = WopbsParam::new(
         LweDimension(769), // lwe_dimension
         STD_DEV_769, // lwe_modular_std_dev
@@ -141,7 +159,7 @@ lazy_static! {
         DecompositionLevelCount(3), // ks_level
         DecompositionBaseLog(7), // auto_base_log
         DecompositionLevelCount(7), // auto_level
-        FftType::Split(36), // fft_type_auto
+        FftType::Split(35), // fft_type_auto
         DecompositionBaseLog(17), // ss_base_log
         DecompositionLevelCount(2), // ss_level
         DecompositionBaseLog(4), // cbs_base_log
