@@ -1,3 +1,4 @@
+stddev_653 = 6.772274609789095e-05 # 130.6 bit security
 stddev_636 = 9.25119974676756e-5 # 130.7 bit security
 stddev_768 = 8.763872947670246e-06 # 130.1 bit security
 stddev_769 = 8.763872947670246e-06 # 130.1 bit security
@@ -67,7 +68,7 @@ improved_wopbs_2_2 = (
     "improved wopbs_2_2",
     (769, stddev_769^2), # (LWE dim, LWE var), 130.1 bit security
     (2^15, 2), # (PBS base, PBS level)
-    (2^7, 7, 2^36), # (Tr base, Tr level, split base)
+    (2^7, 7, 2^35), # (Tr base, Tr level, split base)
     (2^17, 2), # (SS base, SS level)
     (2^4, 4), # (CBS base, CBS level) with increased level
     (2^4, 3), # (KS base, KS level) with increased level
@@ -83,7 +84,7 @@ improved_wopbs_3_3 = (
     (2^12, 4, 2^40), # (Tr base, Tr level, split fft)
     (2^10, 4), # (SS base, SS level),
     (2^15, 3, 2^42), # (KS_to_large base, KS_to_large level, split fft),
-    (2^12, 3, 2^42), # (KS_from_large base, KS_from_large level, split fft),
+    (2^12, 3, 2^40), # (KS_from_large base, KS_from_large level, split fft),
     (2^5, 4), # (CBS base, CBS level) with increased level
     (2^7, 2), # (KS base, KS level) with increased level
     2, # theta

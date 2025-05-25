@@ -3,43 +3,24 @@ load("param.sage")
 
 q = 2^64
 n = 768
-# k = 2
-# logN = 10
-# N = 2**logN
 
 N_common = 256
 
 Var_GLWE = stddev_2048^2
 Var_LWE = stddev_768^2
 
-# B_hc_tr = 2^4
-# l_hc_tr = 11
-# b_hc_tr = 2^64
-# B_hc_ss = 2^17
-# l_hc_ss = 2
-# B_hc_ggsw = 2^4
-# l_hc_ggsw = 5
-
-# B_tr = 2^12
-# l_tr = 3
-# B_ss = 2^17
-# l_ss = 2
-# B_ggsw = 2^2
-# l_ggsw = 7
 B_ds = 2^4
 l_ds = 3
-# B_pbs = 2^23
-# l_pbs = 1
 
 amp_by_int_msg = 5
 
 param1 = (
     "AES_HALF_CBS",
     # HalfCBS
-    (2, 1024, stddev_2048^2), # (k_hc, N_hc, Var_hc_GLWE)
-    (2^4, 11, 2^64), # (B_hc_tr, l_hc_tr, b_hc_tr)
-    (2^17, 2), # (B_hc_ss, l_hc_ss)
-    (2^4, 5), # (B_hc_ggsw, l_hc_ggsw)
+    (3, 1024, stddev_4096^2), # (k_hc, N_hc, Var_hc_GLWE)
+    (2^15, 3, 2^42), # (B_hc_tr, l_hc_tr, b_hc_tr)
+    (2^13, 3), # (B_hc_ss, l_hc_ss)
+    (2^7, 3), # (B_hc_ggsw, l_hc_ggsw)
     # CBS
     (2, 1024, stddev_2048^2), # (k, N, Var_GLWE)
     (2^23, 1), # (B_pbs, l_pbs)
@@ -52,24 +33,21 @@ param1 = (
 param2 = (
     "AES_HALF_CBS (high prec)",
     # HalfCBS
-    # (2, 1024, stddev_2048^2), # (k_hc, N_hc, Var_hc_GLWE)
     (3, 1024, stddev_4096^2), # (k_hc, N_hc, Var_hc_GLWE)
-    # (2^5, 9, 2^33), # (B_hc_tr, l_hc_tr, b_hc_tr)
     (2^15, 3, 2^42), # (B_hc_tr, l_hc_tr, b_hc_tr)
     (2^13, 3), # (B_hc_ss, l_hc_ss)
     (2^7, 3), # (B_hc_ggsw, l_hc_ggsw)
     # CBS
     (2, 1024, stddev_2048^2), # (k, N, Var_GLWE)
     (2^15, 2), # (B_pbs, l_pbs)
-    # (2^12, 3, 2^64), # (B_tr, l_tr, b_tr)
     (2^7, 6, 2^34), # (B_tr, l_tr, b_tr)
-    # (2^26, 1), # (B_ss, l_ss)
     (2^17, 2), # (B_ss, l_ss)
     (2^4, 4), # (B_ggsw, l_ggsw)
     2, # theta
 )
 
 param_list = [
+    param1,
     param2,
 ]
 
@@ -108,11 +86,16 @@ for param in param_list:
     Var_fft_tr = get_var_fft_tr(N_hc, k_hc, B_hc_tr, l_hc_tr, b_hc_tr)
     Var_tr_tot = Var_tr + Var_fft_tr
 
+    Var_split_fft_tr_upper = get_var_fft_glwe_ks(N_hc, k_hc, B_hc_tr, l_hc_tr, q / b_hc_tr)
+    _, fp_split_fft = get_fp_split_fft_glwe_ks(N_hc, k_hc, q, B_hc_tr, l_hc_tr, b_hc_tr)
+    log_fp_split_fft = log(fp_split_fft, 2).n(10000)
+
     print(f"Var_tr_tot: 2^{log(Var_tr_tot, 2).n():.4f}")
     print(f"  - Var_tr:     2^{log(Var_tr, 2).n():.4f}")
     print(f"    - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"    - Var_auto_key   : 2^{log(Var_auto_key, 2).n():.4f}")
     print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft:.4f} (stddev_upper: 2^{log(Var_split_fft_tr_upper, 2).n() / 2:.4f})")
 
     Var_ss_gadget = get_var_ss_gadget(N_hc, k_hc, q, B_hc_ss, l_hc_ss)
     Var_ss_key = get_var_ss_inc(N_hc, k_hc, q^2 * Var_hc_GLWE, B_hc_ss, l_hc_ss)
@@ -180,7 +163,6 @@ for param in param_list:
     log_fp = log(fp, 2).n(1000)
     print(f"F.P. of next PBS with theta = {theta}: Gamma = {Gamma}, f.p. = 2^{log_fp:.4f}")
 
-    exit()
 
     print(f"\n==== 3rd Round (CBS) ====")
     Var_pbs = get_var_pbs(N, k, n, q, Var_GLWE, B_pbs, l_pbs)
@@ -196,11 +178,16 @@ for param in param_list:
     Var_fft_tr = get_var_fft_tr(N, k, B_tr, l_tr, q)
     Var_tr_tot = Var_tr + Var_fft_tr
 
+    Var_split_fft_tr_upper = get_var_fft_glwe_ks(N, k, B_tr, l_tr, q / b_tr)
+    _, fp_split_fft = get_fp_split_fft_glwe_ks(N, k, q, B_tr, l_tr, b_tr)
+    log_fp_split_fft = log(fp_split_fft, 2).n(10000)
+
     print(f"Var_tr_tot: 2^{log(Var_tr_tot, 2).n():.4f}")
     print(f"  - Var_tr:     2^{log(Var_tr, 2).n():.4f}")
     print(f"    - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"    - Var_auto_key   : 2^{log(Var_auto_key, 2).n():.4f}")
     print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft:.4f} (stddev_upper: 2^{log(Var_split_fft_tr_upper, 2).n() / 2:.4f})")
 
     Var_ss_gadget = get_var_ss_gadget(N, k, q, B_ss, l_ss)
     Var_ss_key = get_var_ss_inc(N, k, q^2 * Var_GLWE, B_ss, l_ss)

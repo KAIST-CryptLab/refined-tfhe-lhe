@@ -10,9 +10,9 @@ Var_large_GLWE = stddev_4096^2
 
 
 param_list = [
-    # wopbs_2_2,
-    # wopbs_3_3,
-    # wopbs_4_4,
+    wopbs_2_2,
+    wopbs_3_3,
+    wopbs_4_4,
 ]
 
 for param in param_list:
@@ -84,7 +84,7 @@ for param in param_list:
 
 
 param_list = [
-    # improved_wopbs_2_2,
+    improved_wopbs_2_2,
 ]
 
 for param in param_list:
@@ -100,7 +100,8 @@ for param in param_list:
     max_num_extract = param[9]
 
     print(f"========================= {name} =========================")
-    print(f"n: {n}, N: {N}, k: {k}, B_pbs: 2^{log(B_pbs, 2)}, l_pbs: {l_pbs}\n")
+    print(f"n: {n}, N: {N}, k: {k}, B_pbs: 2^{log(B_pbs, 2)}, l_pbs: {l_pbs}, B_ks: 2^{log(B_ksk, 2)}, l_ks: {l_ksk}")
+    print(f"B_tr: 2^{log(B_tr, 2)}, l_tr: {l_tr}, b_tr: 2^{log(b_tr, 2)}, B_ss: 2^{log(B_ss, 2)}, l_ss: {l_ss}, B_cbs: 2^{log(B_cbs, 2)}, l_cbs: {l_cbs}\n")
 
     Var_pbs = get_var_pbs(N, k, n, q, Var_GLWE, B_pbs, l_pbs)
     Var_fft_pbs = get_var_fft_pbs(N, k, n, B_pbs, l_pbs)
@@ -112,6 +113,10 @@ for param in param_list:
     Var_auto_key = get_var_glwe_ks_key(N, k, q, Var_GLWE, B_tr, l_tr)
     Var_fft_tr = get_var_fft_tr(N, k, B_tr, l_tr, b_tr)
     Var_tr_tot = Var_tr + Var_fft_tr
+
+    Var_split_fft_tr_upper = get_var_fft_glwe_ks(N, k, B_tr, l_tr, q / b_tr)
+    _, fp_split_fft = get_fp_split_fft_glwe_ks(N, k, q, B_tr, l_tr, b_tr)
+    log_fp_split_fft = log(fp_split_fft, 2).n(10000)
 
     Var_ss = get_var_ss(N, k, q, q^2 * Var_GLWE, B_ss, l_ss)
     Var_ss_gadget = get_var_ss_gadget(N, k, q, B_ss, l_ss)
@@ -137,6 +142,7 @@ for param in param_list:
     print(f"     - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"     - Var_auto_key: 2^{log(Var_auto_key, 2).n():.4f}")
     print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft:.4f} (stddev_upper: 2^{log(Var_split_fft_tr_upper, 2).n() / 2:.4f})")
     print(f"Var_ss_tot: 2^{log(Var_ss_tot, 2).n():.4f}")
     print(f"  - Var_ss: 2^{log(Var_ss, 2).n():.4f}")
     print(f"    - Var_ss_gadget: 2^{log(Var_ss_gadget, 2).n():.4f}")
@@ -216,6 +222,10 @@ for param in param_list:
 
     print(f"========================= {name} =========================")
     print(f"n: {n}, N: {N}, k: {k}, B_pbs: 2^{log(B_pbs, 2)}, l_pbs: {l_pbs}\n")
+    print(f"B_to_large: 2^{log(B_to_large, 2)}, l_to_large: {l_to_large}, b_to_large: 2^{log(b_to_large, 2)}")
+    print(f"B_tr: 2^{log(B_tr, 2)}, l_tr: {l_tr}, b_tr: 2^{log(b_tr, 2)}")
+    print(f"B_from_large: 2^{log(B_from_large, 2)}, l_from_large: {l_from_large}, b_from_large: 2^{log(b_from_large, 2)}")
+    print(f"B_ss: 2^{log(B_ss, 2)}, l_ss: {l_ss}, B_cbs: 2^{log(B_cbs, 2)}, l_cbs: {l_cbs}\n")
 
     Var_pbs = get_var_pbs(N, k, n, q, Var_GLWE, B_pbs, l_pbs)
     Var_fft_pbs = get_var_fft_pbs(N, k, n, B_pbs, l_pbs)
@@ -228,6 +238,7 @@ for param in param_list:
     Var_to_large_key = get_var_glwe_ks_key(N, k, q, Var_large_GLWE, B_to_large, l_to_large)
     Var_to_large_tot = Var_to_large + Var_fft_to_large
 
+    Var_split_fft_upper_to_large = get_var_fft_glwe_ks(N, k, B_to_large, l_to_large, q / b_to_large)
     _, fp_split_fft = get_fp_split_fft_glwe_ks(N, k, q, B_to_large, l_to_large, b_to_large)
     log_fp_split_fft_to_large = log(fp_split_fft, 2).n(10000)
 
@@ -237,6 +248,7 @@ for param in param_list:
     Var_fft_tr = get_var_fft_tr(N, k, B_tr, l_tr, b_tr)
     Var_tr_tot = Var_tr + Var_fft_tr
 
+    Var_split_fft_tr_upper = get_var_fft_glwe_ks(N, k_large, B_tr, l_tr, q / b_tr)
     _, fp_split_fft = get_fp_split_fft_glwe_ks(N, k_large, q, B_tr, l_tr, b_tr)
     log_fp_split_fft_tr = log(fp_split_fft, 2).n(10000)
 
@@ -246,6 +258,7 @@ for param in param_list:
     Var_from_large_key = get_var_glwe_ks_key(N, k_large, q, Var_GLWE, B_from_large, l_from_large)
     Var_from_large_tot = Var_from_large + Var_fft_from_large
 
+    Var_split_fft_upper_from_large = get_var_fft_glwe_ks(N, k_large, B_from_large, l_from_large, q / b_from_large)
     _, fp_split_fft = get_fp_split_fft_glwe_ks(N, k_large, q, B_from_large, l_from_large, b_from_large)
     log_fp_split_fft_from_large = log(fp_split_fft, 2).n(10000)
 
@@ -271,19 +284,19 @@ for param in param_list:
     print(f"    - Var_to_large_gadget: 2^{log(Var_to_large_gadget).n():.4f}")
     print(f"    - Var_to_large_key   : 2^{log(Var_to_large_key).n():.4f}")
     print(f"  - Var_fft_to_large: 2^{log(Var_fft_to_large, 2).n():.4f}")
-    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_to_large:.4f}:")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_to_large:.4f} (stddev_upper: 2^{log(Var_split_fft_upper_to_large, 2).n() / 2:.4f})")
     print(f"Var_tr_tot : 2^{log(Var_tr_tot, 2).n():.4f}")
     print(f"  - Var_tr: 2^{log(Var_tr, 2).n():.4f}")
     print(f"     - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"     - Var_auto_key: 2^{log(Var_auto_key, 2).n():.4f}")
     print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
-    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_tr:.4f}:")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_tr:.4f} (stddev_upper: 2^{log(Var_split_fft_tr_upper, 2).n() / 2:.4f})")
     print(f"Var_from_large_tot : 2^{log(Var_from_large_tot, 2).n():.4f}")
     print(f"  - Var_from_large: 2^{log(Var_from_large, 2).n():.4f}")
     print(f"    - Var_from_large_gadget: 2^{log(Var_from_large_gadget).n():.4f}")
     print(f"    - Var_from_large_key   : 2^{log(Var_from_large_key).n():.4f}")
     print(f"  - Var_fft_from_large: 2^{log(Var_fft_from_large, 2).n():.4f}")
-    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_from_large:.4f}:")
+    print(f"  - F.P. of split fft: 2^{log_fp_split_fft_from_large:.4f} (stddev_upper: 2^{log(Var_split_fft_upper_from_large, 2).n() / 2:.4f})")
     print(f"Var_ss_tot: 2^{log(Var_ss_tot, 2).n():.4f}")
     print(f"  - Var_ss: 2^{log(Var_ss, 2).n():.4f}")
     print(f"  - Var_fft_ss: 2^{log(Var_fft_ss, 2).n():.4f}")

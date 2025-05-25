@@ -78,7 +78,7 @@ for param in param_list:
         # MV-PBS [CIM19] to extract num_extract bits
         if num_extract == 3:
             Var_Add *= 3
-        Var_scaled_in = 2^(2*(log_modulus - num_extract + 1)) * Var_Add
+        Var_scaled_in = 2^(2*(log_modulus - num_extract + 1)) * Var_Add # one padding-bit in the MSB is considered (cf. hp_lhe.sage)
 
         print("-------------------------------------------------------------------------")
         print(f"# extracting bits: {num_extract} (MV-PBS [CIM19] is used after PBSmanyLUT [CLOT21] for LWEtoLev Conversion)")

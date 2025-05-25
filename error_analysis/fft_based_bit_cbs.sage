@@ -62,6 +62,7 @@ for param in param_list:
     Var_auto_key = get_var_glwe_ks_key(N, k, q, Var_GLWE, B_tr, l_tr)
     Var_fft_tr = get_var_fft_tr(N, k, B_tr, l_tr, b_tr)
     Var_tr_tot = Var_tr + Var_fft_tr
+    Var_split_fft_upper = get_var_fft_glwe_ks(N, k, B_tr, l_tr, q / b_tr)
     Gamma, fp_split_fft = get_fp_split_fft_glwe_ks(N, k, q, B_tr, l_tr, b_tr)
 
     print(f"Var_tr_tot: 2^{log(Var_tr_tot, 2).n():.4f}")
@@ -69,7 +70,7 @@ for param in param_list:
     print(f"    - Var_auto_gadget: 2^{log(Var_auto_gadget, 2).n():.4f}")
     print(f"    - Var_auto_key   : 2^{log(Var_auto_key, 2).n():.4f}")
     print(f"  - Var_fft_tr: 2^{log(Var_fft_tr, 2).n():.4f}")
-    print(f"F.P. of split FFT for Tr: Gamma = {Gamma:.4f}, fp = 2^{log(fp_split_fft, 2).n(10000):.4f}")
+    print(f"F.P. of split FFT for Tr: stddev_upper = 2^{log(Var_split_fft_upper, 2) / 2:.4f}, Gamma = {Gamma:.4f}, fp = 2^{log(fp_split_fft, 2).n(10000):.4f}")
     print()
 
     Var_ss = get_var_ss(N, k, q, q^2 * Var_GLWE, B_ss, l_ss)
