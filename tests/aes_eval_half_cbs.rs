@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{aes_he::*, aes_ref::*, allocate_and_generate_new_glwe_keyswitch_key, automorphism::*, convert_standard_glwe_keyswitch_key_to_fourier, get_max_err_ggsw_int, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType, FourierGlweKeyswitchKey};
+use refined_tfhe_lhe::{aes_he::*, aes_ref::*, allocate_and_generate_new_glwe_keyswitch_key, automorphism::*, convert_standard_glwe_keyswitch_key_to_fourier, get_max_err_ggsw_int, ggsw_conv::*, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType, FourierGlweKeyswitchKey};
 
 fn main() {
     // AES evaluation by patched WWL+ circuit bootstrapping

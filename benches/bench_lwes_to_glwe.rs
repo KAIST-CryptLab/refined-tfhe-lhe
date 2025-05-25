@@ -1,5 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
-use auto_base_conv::{gen_all_auto_keys, glwe_conv::*, FftType};
+use refined_tfhe_lhe::{gen_all_auto_keys, glwe_conv::*, FftType};
 use tfhe::core_crypto::prelude::*;
 
 criterion_group!(

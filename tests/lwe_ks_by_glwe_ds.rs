@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_standard_glwe_keyswitch_key_to_fourier, get_val_and_abs_err, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType, FourierGlweKeyswitchKey};
+use refined_tfhe_lhe::{allocate_and_generate_new_glwe_keyswitch_key, convert_standard_glwe_keyswitch_key_to_fourier, get_val_and_abs_err, keyswitch_lwe_ciphertext_by_glwe_keyswitch, FftType, FourierGlweKeyswitchKey};
 use tfhe::core_crypto::prelude::*;
 
 type Scalar = u64;

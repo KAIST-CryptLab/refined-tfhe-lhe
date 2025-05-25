@@ -3,7 +3,7 @@ use dyn_stack::ReborrowMut;
 use tfhe::core_crypto::prelude::*;
 use tfhe::core_crypto::fft_impl::fft64::c64;
 use tfhe::core_crypto::fft_impl::fft64::crypto::wop_pbs::{extract_bits_scratch, extract_bits, circuit_bootstrap_boolean_scratch};
-use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, blind_rotate_for_msb, convert_standard_glwe_keyswitch_key_to_fourier, convert_to_ggsw_after_blind_rotate, convert_to_ggsw_after_blind_rotate_high_prec, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*, FourierGlweKeyswitchKey};
+use refined_tfhe_lhe::{allocate_and_generate_new_glwe_keyswitch_key, blind_rotate_for_msb, convert_standard_glwe_keyswitch_key_to_fourier, convert_to_ggsw_after_blind_rotate, convert_to_ggsw_after_blind_rotate_high_prec, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*, FourierGlweKeyswitchKey};
 
 
 criterion_group!(

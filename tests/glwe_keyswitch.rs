@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
+use refined_tfhe_lhe::{fourier_glwe_keyswitch::*, get_glwe_l2_err, glwe_keyswitch::*, utils::get_glwe_max_err};
 
 type Scalar = u64;
 const FFT_TYPE: FftType = FftType::Split(20);

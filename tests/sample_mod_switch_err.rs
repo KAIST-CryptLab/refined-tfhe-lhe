@@ -1,4 +1,4 @@
-use auto_base_conv::{
+use refined_tfhe_lhe::{
     utils::get_val_and_abs_err,
     mod_switch::lwe_ciphertext_mod_switch_from_native_to_non_native_power_of_two,
 };

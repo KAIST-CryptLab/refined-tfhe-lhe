@@ -1,4 +1,4 @@
-use auto_base_conv::{generate_accumulator, get_val_and_abs_err, keygen_pbs};
+use refined_tfhe_lhe::{generate_accumulator, get_val_and_abs_err, keygen_pbs};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
 

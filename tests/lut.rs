@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use auto_base_conv::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
+use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
 use rand::Rng;
 use tfhe::core_crypto::{
     prelude::*,

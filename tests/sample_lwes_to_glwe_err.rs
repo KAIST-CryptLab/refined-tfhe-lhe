@@ -1,4 +1,4 @@
-use auto_base_conv::{convert_lwes_to_glwe_by_trace_with_preprocessing, gen_all_auto_keys, get_glwe_l2_err, get_glwe_max_err, FftType};
+use refined_tfhe_lhe::{convert_lwes_to_glwe_by_trace_with_preprocessing, gen_all_auto_keys, get_glwe_l2_err, get_glwe_max_err, FftType};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 

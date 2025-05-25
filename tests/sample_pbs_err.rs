@@ -1,4 +1,4 @@
-use auto_base_conv::{generate_accumulator, get_val_and_abs_err};
+use refined_tfhe_lhe::{generate_accumulator, get_val_and_abs_err};
 use tfhe::core_crypto::prelude::*;
 
 type Scalar = u64;

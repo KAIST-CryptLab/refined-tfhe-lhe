@@ -1,4 +1,4 @@
-use auto_base_conv::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
+use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use rand::Rng;
 use tfhe::core_crypto::{

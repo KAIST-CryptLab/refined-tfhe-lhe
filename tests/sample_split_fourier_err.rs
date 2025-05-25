@@ -1,7 +1,7 @@
 use std::ops::Neg;
 
 use dyn_stack::ReborrowMut;
-use auto_base_conv::fourier_poly_mult::*;
+use refined_tfhe_lhe::fourier_poly_mult::*;
 use rand::Rng;
 use tfhe::core_crypto::{
     prelude::*,

@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{
+use refined_tfhe_lhe::{
     aes_instances::*, automorphism::gen_all_auto_keys, byte_array_to_mat, generate_scheme_switching_key, generate_vec_keyed_lut_accumulator, get_he_state_error, he_add_round_key, he_mix_columns_precomp, he_shift_rows, he_sub_bytes_8_to_24_by_patched_wwlp_cbs, he_sub_bytes_by_patched_wwlp_cbs, keygen_pbs_with_glwe_ds, keyswitch_lwe_ciphertext_by_glwe_keyswitch, known_rotate_keyed_lut, Aes128Ref, BLOCKSIZE_IN_BIT, BLOCKSIZE_IN_BYTE, BYTESIZE, NUM_ROUNDS
 };
 

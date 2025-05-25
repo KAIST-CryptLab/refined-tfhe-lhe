@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use auto_base_conv::{
+use refined_tfhe_lhe::{
     gen_all_auto_keys,
     generate_scheme_switching_key,
     get_max_err_ggsw_bit,

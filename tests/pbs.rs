@@ -1,6 +1,6 @@
 use std::time::Instant;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{get_val_and_abs_err, generate_accumulator};
+use refined_tfhe_lhe::{get_val_and_abs_err, generate_accumulator};
 
 fn main() {
     /*

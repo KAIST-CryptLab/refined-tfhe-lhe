@@ -1,4 +1,4 @@
-use auto_base_conv::{generate_accumulator, keygen_pbs};
+use refined_tfhe_lhe::{generate_accumulator, keygen_pbs};
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use polynomial_algorithms::polynomial_wrapping_mul;
 use tfhe::core_crypto::prelude::*;

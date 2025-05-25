@@ -1,7 +1,7 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
 use tfhe::core_crypto::fft_impl::fft64::c64;
-use auto_base_conv::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*};
+use refined_tfhe_lhe::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, gen_all_auto_keys, generate_scheme_switching_key, get_max_err_ggsw_bit, glwe_ciphertext_clone_from, glwe_ciphertext_monic_monomial_div, keygen_pbs, lwe_msb_bit_to_lev, wopbs_instance::*};
 
 criterion_group!(
     name = benches;

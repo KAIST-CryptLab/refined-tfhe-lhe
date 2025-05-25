@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::wopbs_instance::*;
+use refined_tfhe_lhe::wopbs_instance::*;
 
 
 criterion_group!(

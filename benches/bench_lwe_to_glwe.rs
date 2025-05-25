@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{
+use refined_tfhe_lhe::{
     automorphism::gen_all_auto_keys, glwe_conv::*, auto_conv_instance::*,
 };
 

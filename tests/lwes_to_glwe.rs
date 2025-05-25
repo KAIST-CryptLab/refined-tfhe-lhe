@@ -1,7 +1,7 @@
 use std::time::Instant;
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
-use auto_base_conv::{automorphism::*, convert_lwes_to_glwe_by_trace_with_preprocessing, get_glwe_l2_err, get_glwe_max_err, FftType};
+use refined_tfhe_lhe::{automorphism::*, convert_lwes_to_glwe_by_trace_with_preprocessing, get_glwe_l2_err, get_glwe_max_err, FftType};
 
 type Scalar = u64;
 

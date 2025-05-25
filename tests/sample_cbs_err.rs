@@ -1,8 +1,8 @@
-use auto_base_conv::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, get_max_err_ggsw_bit};
+use refined_tfhe_lhe::{blind_rotate_for_msb, convert_to_ggsw_after_blind_rotate, get_max_err_ggsw_bit};
 use rand::Rng;
 use tfhe::core_crypto::prelude::*;
 #[allow(unused)]
-use auto_base_conv::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, wopbs_instance::*, wopbs_params::ImprovedWopbsParam, wwlp_cbs_instance::*, FourierGlweKeyswitchKey, HighPrecWWLpCBSParam, WWLpCBSParam};
+use refined_tfhe_lhe::{allocate_and_generate_new_glwe_keyswitch_key, convert_lwe_to_glwe_by_trace_with_preprocessing, convert_lwe_to_glwe_by_trace_with_preprocessing_high_prec, convert_standard_glwe_keyswitch_key_to_fourier, gen_all_auto_keys, generate_scheme_switching_key, get_glwe_l2_err, get_glwe_max_err, keygen_pbs, lwe_msb_bit_to_lev, switch_scheme, wopbs_instance::*, wopbs_params::ImprovedWopbsParam, wwlp_cbs_instance::*, FourierGlweKeyswitchKey, HighPrecWWLpCBSParam, WWLpCBSParam};
 
 type Scalar = u64;
 const NUM_REPEAT: usize = 1000;
