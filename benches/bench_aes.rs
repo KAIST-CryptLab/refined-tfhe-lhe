@@ -7,7 +7,7 @@ use refined_tfhe_lhe::{
 
 criterion_group!(
     name = benches;
-    config = Criterion::default().sample_size(1000);
+    config = Criterion::default().sample_size(10);
     targets =
         criterion_benchmark_aes,
 );

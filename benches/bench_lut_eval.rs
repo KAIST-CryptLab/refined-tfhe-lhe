@@ -1,4 +1,4 @@
-use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
+use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, int_lhe_instance::INT_LHE_BASE_16};
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use rand::Rng;
 use tfhe::core_crypto::{
@@ -28,7 +28,7 @@ fn criterion_benchmark_lut_8_to_4(c: &mut Criterion) {
     let mut group = c.benchmark_group("LUT");
 
     let param_list = [
-        (*IMPROVED_WOPBS_2_2, 4),
+        (*INT_LHE_BASE_16, 4),
     ];
 
     for (param, chunk_size) in param_list.iter() {
@@ -174,7 +174,7 @@ fn criterion_benchmark_lut_16_to_4(c: &mut Criterion) {
         let mut group = c.benchmark_group("LUT");
 
     let param_list = [
-        (*IMPROVED_WOPBS_2_2, 4),
+        (*INT_LHE_BASE_16, 4),
     ];
 
     for (param, chunk_size) in param_list.iter() {

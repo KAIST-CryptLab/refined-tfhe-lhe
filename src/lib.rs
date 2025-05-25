@@ -16,8 +16,8 @@ pub mod aes_ref;
 pub mod aes_he;
 pub mod auto_conv_params;
 pub mod auto_conv_instance;
-pub mod wopbs_params;
-pub mod wopbs_instance;
+pub mod int_lhe_params;
+pub mod int_lhe_instance;
 pub mod aes_params;
 pub mod aes_instances;
 

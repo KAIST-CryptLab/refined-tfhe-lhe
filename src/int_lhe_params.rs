@@ -1,6 +1,7 @@
 use tfhe::core_crypto::prelude::*;
 use crate::FftType;
 
+// [BBB+23]
 #[derive(Clone, Copy)]
 pub struct WopbsParam<Scalar: UnsignedInteger> {
     lwe_dimension: LweDimension,
@@ -21,7 +22,7 @@ pub struct WopbsParam<Scalar: UnsignedInteger> {
 }
 
 #[derive(Clone, Copy)]
-pub struct ImprovedWopbsParam<Scalar: UnsignedInteger> {
+pub struct IntLheParam<Scalar: UnsignedInteger> {
     lwe_dimension: LweDimension,
     lwe_modular_std_dev: StandardDev,
     polynomial_size: PolynomialSize,
@@ -44,7 +45,7 @@ pub struct ImprovedWopbsParam<Scalar: UnsignedInteger> {
 }
 
 #[derive(Clone, Copy)]
-pub struct HighPrecImprovedWopbsParam<Scalar: UnsignedInteger> {
+pub struct HighPrecIntLheParam<Scalar: UnsignedInteger> {
     lwe_dimension: LweDimension,
     lwe_modular_std_dev: StandardDev,
     polynomial_size: PolynomialSize,
@@ -172,7 +173,7 @@ impl<Scalar: UnsignedInteger> WopbsParam<Scalar> {
     }
 }
 
-impl<Scalar: UnsignedInteger> ImprovedWopbsParam<Scalar> {
+impl<Scalar: UnsignedInteger> IntLheParam<Scalar> {
     pub fn new(
         lwe_dimension: LweDimension,
         lwe_modular_std_dev: StandardDev,
@@ -194,7 +195,7 @@ impl<Scalar: UnsignedInteger> ImprovedWopbsParam<Scalar> {
         ciphertext_modulus: CiphertextModulus::<Scalar>,
         message_size: usize,
     ) -> Self {
-        ImprovedWopbsParam {
+        IntLheParam {
             lwe_dimension,
             lwe_modular_std_dev,
             polynomial_size,
@@ -295,7 +296,7 @@ impl<Scalar: UnsignedInteger> ImprovedWopbsParam<Scalar> {
 
 }
 
-impl<Scalar: UnsignedInteger> HighPrecImprovedWopbsParam<Scalar> {
+impl<Scalar: UnsignedInteger> HighPrecIntLheParam<Scalar> {
     pub fn new(
         lwe_dimension: LweDimension,
         lwe_modular_std_dev: StandardDev,
@@ -325,7 +326,7 @@ impl<Scalar: UnsignedInteger> HighPrecImprovedWopbsParam<Scalar> {
         ciphertext_modulus: CiphertextModulus::<Scalar>,
         message_size: usize,
     ) -> Self {
-        HighPrecImprovedWopbsParam {
+        HighPrecIntLheParam {
             lwe_dimension,
             lwe_modular_std_dev,
             polynomial_size,

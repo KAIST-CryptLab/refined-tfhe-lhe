@@ -128,7 +128,7 @@ name = "bench_bitwise_cbs"
 harness = false
 
 [[bench]]
-name = "bench_hp_lhe"
+name = "bench_integer_input_lhe"
 harness = false
 
 [[bench]]
@@ -152,7 +152,7 @@ name = "bench_tree"
 harness = false
 
 [[bench]]
-name = "bench_lut"
+name = "bench_lut_eval"
 harness = false
 
 [features]

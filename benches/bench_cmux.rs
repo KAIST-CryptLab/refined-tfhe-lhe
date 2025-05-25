@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId};
 use tfhe::core_crypto::prelude::*;
-use refined_tfhe_lhe::wopbs_instance::*;
+use refined_tfhe_lhe::int_lhe_instance::*;
 
 
 criterion_group!(
@@ -19,7 +19,7 @@ fn criterion_benchmark_cmux(c: &mut Criterion) {
         (*BITWISE_CBS_CMUX1, "CMUX1"),
         (*BITWISE_CBS_CMUX2, "CMUX2"),
         (*BITWISE_CBS_CMUX3, "CMUX3"),
-        (*IMPROVED_WOPBS_2_2, "improved_wopbs_2_2"),
+        (*INT_LHE_BASE_16, "INT_LHE_BASE_16"),
     ];
 
     for (param, id) in param_list.iter() {

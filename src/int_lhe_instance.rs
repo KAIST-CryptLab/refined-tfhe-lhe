@@ -1,4 +1,4 @@
-use crate::wopbs_params::*;
+use crate::int_lhe_params::*;
 use crate::FftType;
 use crate::lwe_std_dev_param::*;
 use tfhe::core_crypto::prelude::*;
@@ -78,7 +78,7 @@ lazy_static! {
     );
 
 
-    pub static ref BITWISE_CBS_CMUX1: ImprovedWopbsParam<u64> = ImprovedWopbsParam::new(
+    pub static ref BITWISE_CBS_CMUX1: IntLheParam<u64> = IntLheParam::new(
         LweDimension(636), // lwe_dimension
         STD_DEV_636, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
@@ -101,7 +101,7 @@ lazy_static! {
     );
 
 
-    pub static ref BITWISE_CBS_CMUX2: ImprovedWopbsParam<u64> = ImprovedWopbsParam::new(
+    pub static ref BITWISE_CBS_CMUX2: IntLheParam<u64> = IntLheParam::new(
         LweDimension(636), // lwe_dimension
         STD_DEV_636, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
@@ -124,7 +124,7 @@ lazy_static! {
     );
 
 
-    pub static ref BITWISE_CBS_CMUX3: ImprovedWopbsParam<u64> = ImprovedWopbsParam::new(
+    pub static ref BITWISE_CBS_CMUX3: IntLheParam<u64> = IntLheParam::new(
         LweDimension(636), // lwe_dimension
         STD_DEV_636, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
@@ -147,7 +147,7 @@ lazy_static! {
     );
 
 
-    pub static ref IMPROVED_WOPBS_2_2: ImprovedWopbsParam<u64> = ImprovedWopbsParam::new(
+    pub static ref INT_LHE_BASE_16: IntLheParam<u64> = IntLheParam::new(
         LweDimension(769), // lwe_dimension
         STD_DEV_769, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
@@ -169,7 +169,7 @@ lazy_static! {
         4,
     );
 
-    pub static ref HIGHPREC_IMPROVED_WOPBS_3_3: HighPrecImprovedWopbsParam<u64> = HighPrecImprovedWopbsParam::new(
+    pub static ref INT_LHE_BASE_64: HighPrecIntLheParam<u64> = HighPrecIntLheParam::new(
         LweDimension(873), // lwe_dimension
         STD_DEV_873, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
@@ -199,7 +199,7 @@ lazy_static! {
         6, // message_size
     );
 
-    pub static ref HIGHPREC_IMPROVED_WOPBS_4_4: HighPrecImprovedWopbsParam<u64> = HighPrecImprovedWopbsParam::new(
+    pub static ref INT_LHE_BASE_256: HighPrecIntLheParam<u64> = HighPrecIntLheParam::new(
         LweDimension(953), // lwe_dimension
         STD_DEV_953, // lwe_modular_std_dev
         PolynomialSize(2048), // polynomial_size
