@@ -61,9 +61,9 @@ fn test_lwes_to_glwe(
     let modulus_sup = 1 << modulus_bit;
     let log_scale = Scalar::BITS as usize - (modulus_bit + 1);
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let pt = PlaintextList::from_container((0..lwe_count).map(|_| {
-        (rng.gen_range(0..modulus_sup) as Scalar) << log_scale
+        (rng.random_range(0..modulus_sup) as Scalar) << log_scale
     }).collect::<Vec<Scalar>>());
 
     let mut input_lwes = LweCiphertextList::new(Scalar::ZERO, lwe_size, LweCiphertextCount(lwe_count), ciphertext_modulus);

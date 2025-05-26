@@ -123,7 +123,7 @@ fn sample_ggsw_conv_err_by_trace_and_ss(
     );
     let ss_key = ss_key.as_view();
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut glev_l_infty_err_list = vec![];
     let mut glev_l2_err_list = vec![];
@@ -134,7 +134,7 @@ fn sample_ggsw_conv_err_by_trace_and_ss(
     let glwe_sk_poly = glwe_sk_poly_list.get(0);
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..2) as Scalar;
+        let msg = rng.random_range(0..2) as Scalar;
 
         let mut lev = LweCiphertextList::new(Scalar::ZERO, lwe_size, LweCiphertextCount(ggsw_level.0), ciphertext_modulus);
 
@@ -341,7 +341,7 @@ B_ss: 2^{}, l_ss: {}",
     );
     let ss_key = ss_key.as_view();
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut glev_l_infty_err_list = vec![];
     let mut glev_l2_err_list = vec![];
@@ -352,7 +352,7 @@ B_ss: 2^{}, l_ss: {}",
     let glwe_sk_poly = glwe_sk_poly_list.get(0);
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..2) as Scalar;
+        let msg = rng.random_range(0..2) as Scalar;
 
         let mut lev = LweCiphertextList::new(Scalar::ZERO, lwe_size, LweCiphertextCount(ggsw_level.0), ciphertext_modulus);
 
@@ -489,7 +489,7 @@ fn sample_ggsw_conv_err_by_pfks(
     );
     let pfpksk = pfpksk_list.get(0);
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
@@ -498,7 +498,7 @@ fn sample_ggsw_conv_err_by_pfks(
     let glwe_sk_poly = glwe_sk_poly_list.get(0);
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..2) as Scalar;
+        let msg = rng.random_range(0..2) as Scalar;
         let pt = Plaintext(msg << (Scalar::BITS - 1));
 
         let input = allocate_and_encrypt_new_lwe_ciphertext(

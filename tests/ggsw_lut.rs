@@ -165,18 +165,18 @@ l_auto: {}, B_auto: 2^{}, fft type: {:?}, l_ss: {}, B_ss: 2^{}\n",
     let glwe_size = glwe_dimension.to_glwe_size();
     let polynomial_size = polynomial_size;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let bit_length = 8;
     assert!(polynomial_size.0 >= (1 << bit_length));
 
     let input_bits = (0..bit_length).map(|_| {
-        rng.gen_range(0..2) as u64
+        rng.random_range(0..2) as u64
     }).collect::<Vec<u64>>();
 
     let num_lut = polynomial_size.0 / (1 << bit_length);
     let vec_table = (0..num_lut).map(|_| {
         (0..(1 << bit_length)).map(|_| {
-            rng.gen_range(0..2) as u64
+            rng.random_range(0..2) as u64
         }).collect::<Vec<u64>>()
     }).collect::<Vec<Vec<u64>>>();
 
@@ -404,18 +404,18 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     let glwe_size = glwe_dimension.to_glwe_size();
     let polynomial_size = polynomial_size;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let bit_length = 8;
     assert!(polynomial_size.0 >= (1 << bit_length));
 
     let input_bits = (0..bit_length).map(|_| {
-        rng.gen_range(0..2) as u64
+        rng.random_range(0..2) as u64
     }).collect::<Vec<u64>>();
 
     let num_lut = polynomial_size.0 / (1 << bit_length);
     let vec_table = (0..num_lut).map(|_| {
         (0..(1 << bit_length)).map(|_| {
-            rng.gen_range(0..2) as u64
+            rng.random_range(0..2) as u64
         }).collect::<Vec<u64>>()
     }).collect::<Vec<Vec<u64>>>();
 

@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, wopbs_instance::IMPROVED_WOPBS_2_2};
+use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, int_lhe_instance::INT_LHE_BASE_16};
 use rand::Rng;
 use tfhe::core_crypto::{
     prelude::*,
@@ -23,7 +23,7 @@ fn main() {
 }
 
 fn lut_8_to_4() {
-    let param = *IMPROVED_WOPBS_2_2;
+    let param = *INT_LHE_BASE_16;
 
     let lwe_dimension = param.lwe_dimension();
     let lwe_modular_std_dev = param.lwe_modular_std_dev();
@@ -71,15 +71,15 @@ fn lut_8_to_4() {
     let _bsk = _bsk.as_view();
 
     // Set input LWE ciphertexts
-    let mut rng = rand::thread_rng();
-    let msg= rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
+    let mut rng = rand::rng();
+    let msg= rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
     let msg_lower = msg % MODULUS;
     let msg_upper = msg >> CHUNK_SIZE;
 
     let lut_input_size = MESSAGE_SIZE;
 
     let lut = (0..(1 << lut_input_size)).map(|_| {
-        rng.gen_range(0..(1 << CHUNK_SIZE)) as usize
+        rng.random_range(0..(1 << CHUNK_SIZE)) as usize
     }).collect::<Vec<usize>>();
     let modified_lut = (0..(1 << lut_input_size)).map(|i| {
         let masked_input = masking_chunk_msb(i);
@@ -139,7 +139,7 @@ fn lut_8_to_4() {
 }
 
 fn lut_16_to_4() {
-    let param = *IMPROVED_WOPBS_2_2;
+    let param = *INT_LHE_BASE_16;
 
     let lwe_dimension = param.lwe_dimension();
     let lwe_modular_std_dev = param.lwe_modular_std_dev();
@@ -186,9 +186,9 @@ fn lut_16_to_4() {
     );
     let _bsk = _bsk.as_view();
 
-    let mut rng = rand::thread_rng();
-    let lhs = rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
-    let rhs = rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
+    let mut rng = rand::rng();
+    let lhs = rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
+    let rhs = rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
 
     let lhs_lower = lhs % MODULUS;
     let lhs_upper = lhs >> CHUNK_SIZE;

@@ -24,7 +24,7 @@ fn sample_fourier_poly_mult_err(
 ) {
     let base = 1 << decomp_base_log.0;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut poly_lhs = Polynomial::new(Scalar::ZERO, polynomial_size);
     let mut poly_rhs = Polynomial::new(Scalar::ZERO, polynomial_size);
 
@@ -33,10 +33,10 @@ fn sample_fourier_poly_mult_err(
 
     for _ in 0..num_repeat {
         for val in poly_lhs.as_mut().iter_mut() {
-            *val = rng.gen_range(0..base) - base / 2;
+            *val = rng.random_range(0..base) - base / 2;
         }
         for val in poly_rhs.as_mut().iter_mut() {
-            *val = rng.gen_range(0..=Scalar::MAX);
+            *val = rng.random_range(0..=Scalar::MAX);
         }
 
         let mut poly_out_standard = Polynomial::new(Scalar::ZERO, polynomial_size);

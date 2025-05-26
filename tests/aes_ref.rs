@@ -1,15 +1,15 @@
 use refined_tfhe_lhe::aes_ref::*;
-use rand::{thread_rng, Rng};
+use rand::{rng, Rng};
 use aes::Aes128;
 use aes::cipher::{KeyInit, BlockEncrypt, generic_array::GenericArray};
 
 fn main() {
     for trial in 0..10 {
         println!("==== Trial {} ====", trial + 1);
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut key = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..BLOCKSIZE_IN_BYTE {
-            key[i] = rng.gen_range(0..=u8::MAX);
+            key[i] = rng.random_range(0..=u8::MAX);
         }
 
         let aes_ref = Aes128Ref::new(&key);
@@ -17,7 +17,7 @@ fn main() {
 
         let mut message = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..BLOCKSIZE_IN_BYTE {
-            message[i] = rng.gen_range(0..=u8::MAX);
+            message[i] = rng.random_range(0..=u8::MAX);
         }
 
         let output_ref = aes_ref.encrypt_block(message);

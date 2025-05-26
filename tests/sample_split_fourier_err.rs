@@ -98,7 +98,7 @@ fn sample_fourier_err(
     let base = 1 << decomp_base_log.0;
     let fft_base = 1 << fft_base_log;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut poly_decomp_list = PolynomialList::new(Scalar::ZERO, polynomial_size, PolynomialCount(decomp_level.0 * glwe_dimension.0));
     let mut poly_split_list: PolynomialList<Vec<u64>> = PolynomialList::new(Scalar::ZERO, polynomial_size, PolynomialCount(decomp_level.0 * glwe_dimension.0));
@@ -107,10 +107,10 @@ fn sample_fourier_err(
 
     for _ in 0..num_repeat {
         for val in poly_decomp_list.as_mut().iter_mut() {
-            *val = rng.gen_range(0..base) - base / 2;
+            *val = rng.random_range(0..base) - base / 2;
         }
         for val in poly_split_list.as_mut().iter_mut() {
-            *val = rng.gen_range(0..fft_base);
+            *val = rng.random_range(0..fft_base);
         }
 
         let mut poly_out_standard = Polynomial::new(Scalar::ZERO, polynomial_size);

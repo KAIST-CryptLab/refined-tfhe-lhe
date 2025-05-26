@@ -67,8 +67,8 @@ fn test_lwe_to_glwe(
     let modulus_sup = 1 << modulus_bit;
     let log_scale = Scalar::BITS as usize - (modulus_bit + 1);
 
-    let mut rng = rand::thread_rng();
-    let msg = rng.gen_range(0..modulus_sup) as Scalar;
+    let mut rng = rand::rng();
+    let msg = rng.random_range(0..modulus_sup) as Scalar;
     let pt = Plaintext(msg << log_scale);
 
     let mut input = allocate_and_encrypt_new_lwe_ciphertext(

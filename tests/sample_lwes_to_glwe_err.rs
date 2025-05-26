@@ -190,14 +190,14 @@ fn sample_lwes_to_glwe_by_trace_with_preprocessing(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
-            rng.gen_range(0..modulus_sup) as Scalar
+            rng.random_range(0..modulus_sup) as Scalar
         }).collect::<Vec<Scalar>>());
 
         let mut input = LweCiphertextList::new(Scalar::ZERO, lwe_sk.lwe_dimension().to_lwe_size(), LweCiphertextCount(LWE_COUNT), ciphertext_modulus);
@@ -299,14 +299,14 @@ fn sample_lwes_to_glwe_by_large_pksk(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
-            rng.gen_range(0..modulus_sup) as Scalar
+            rng.random_range(0..modulus_sup) as Scalar
         }).collect::<Vec<Scalar>>());
 
         let mut input = LweCiphertextList::new(Scalar::ZERO, lwe_sk.lwe_dimension().to_lwe_size(), LweCiphertextCount(LWE_COUNT), ciphertext_modulus);
@@ -423,14 +423,14 @@ fn sample_lwes_to_glwe_by_small_pksk(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
         let pt = PlaintextList::from_container((0..LWE_COUNT).map(|_| {
-            rng.gen_range(0..modulus_sup) as Scalar
+            rng.random_range(0..modulus_sup) as Scalar
         }).collect::<Vec<Scalar>>());
 
         let mut input = LweCiphertextList::new(Scalar::ZERO, lwe_sk.lwe_dimension().to_lwe_size(), LweCiphertextCount(LWE_COUNT), ciphertext_modulus);

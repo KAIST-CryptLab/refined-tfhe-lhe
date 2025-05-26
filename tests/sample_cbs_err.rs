@@ -119,8 +119,8 @@ B_auto: 2^{}, l_auto: {}, fft_type: {:?}, B_ss: 2^{}, l_ss: {}\n",
 
     for _ in 0..num_repeat {
         // Set input LWE ciphertext
-        let mut rng = rand::thread_rng();
-        let msg = rng.gen_range(0..2);
+        let mut rng = rand::rng();
+        let msg = rng.random_range(0..2);
         let lwe = allocate_and_encrypt_new_lwe_ciphertext(
             &lwe_sk,
             Plaintext(msg << (u64::BITS - 1)),
@@ -277,10 +277,10 @@ B_auto: 2^{}, l_auto: {}, fft_type: {:?}, B_ss: 2^{}, l_ss: {}\n",
     let mut wwlp_ep_l_infty_err_list = vec![];
     let mut wwlp_ep_l2_err_list = vec![];
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..2) as Scalar;
+        let msg = rng.random_range(0..2) as Scalar;
 
         let lwe = allocate_and_encrypt_new_lwe_ciphertext(
             &lwe_sk_after_ks,
@@ -683,10 +683,10 @@ B_ss: 2^{}, l_ss: {}\n",
     let mut wwlp_ep_l_infty_err_list = vec![];
     let mut wwlp_ep_l2_err_list = vec![];
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..2) as Scalar;
+        let msg = rng.random_range(0..2) as Scalar;
 
         let lwe = allocate_and_encrypt_new_lwe_ciphertext(
             &lwe_sk_after_ks,

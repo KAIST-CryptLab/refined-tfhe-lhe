@@ -138,10 +138,10 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
     );
 
     // ======== Plain ========
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let mut key = [0u8; BLOCKSIZE_IN_BYTE];
     for i in 0..BLOCKSIZE_IN_BYTE {
-        key[i] = rng.gen_range(0..=u8::MAX);
+        key[i] = rng.random_range(0..=u8::MAX);
     }
 
     let aes = Aes128Ref::new(&key);
@@ -149,7 +149,7 @@ l_auto: {}, B_auto: 2^{}, l_ss: {}, B_ss: 2^{}\n",
 
     let mut message = [0u8; BLOCKSIZE_IN_BYTE];
     for i in 0..16 {
-        message[i] = rng.gen_range(0..=255);
+        message[i] = rng.random_range(0..=255);
     }
     let mut state = byte_array_to_mat(message);
 

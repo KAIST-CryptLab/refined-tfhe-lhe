@@ -84,15 +84,15 @@ fn criterion_benchmark_lut_8_to_4(c: &mut Criterion) {
         );
 
         // Set input LWE ciphertexts
-        let mut rng = rand::thread_rng();
-        let msg= rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
+        let mut rng = rand::rng();
+        let msg= rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
         let msg_lower = msg % modulus;
         let msg_upper = msg >> chunk_size;
 
         let lut_input_size = MESSAGE_SIZE;
 
         let lut = (0..(1 << lut_input_size)).map(|_| {
-            rng.gen_range(0..(1 << chunk_size)) as usize
+            rng.random_range(0..(1 << chunk_size)) as usize
         }).collect::<Vec<usize>>();
         let modified_lut = (0..(1 << lut_input_size)).map(|i| {
             let masked_input = masking_chunk_msb(i, chunk_size);
@@ -230,9 +230,9 @@ fn criterion_benchmark_lut_16_to_4(c: &mut Criterion) {
         );
         let _bsk = _bsk.as_view();
 
-        let mut rng = rand::thread_rng();
-        let lhs = rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
-        let rhs = rng.gen_range(0..(1 << MESSAGE_SIZE)) as usize;
+        let mut rng = rand::rng();
+        let lhs = rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
+        let rhs = rng.random_range(0..(1 << MESSAGE_SIZE)) as usize;
 
         let lhs_lower = lhs % modulus;
         let lhs_upper = lhs >> chunk_size;

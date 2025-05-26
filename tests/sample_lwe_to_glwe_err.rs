@@ -184,13 +184,13 @@ fn sample_lwe_to_glwe_by_trace_with_preprocessing(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..modulus_sup) as Scalar;
+        let msg = rng.random_range(0..modulus_sup) as Scalar;
         let pt = Plaintext(msg << log_scale);
 
         let mut input = allocate_and_encrypt_new_lwe_ciphertext(
@@ -286,13 +286,13 @@ fn sample_lwe_to_glwe_by_large_pksk(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..modulus_sup) as Scalar;
+        let msg = rng.random_range(0..modulus_sup) as Scalar;
         let pt = Plaintext(msg << log_scale);
 
         let input = allocate_and_encrypt_new_lwe_ciphertext(
@@ -407,13 +407,13 @@ fn sample_lwe_to_glwe_by_small_pksk(
         &mut encryption_generator,
     );
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
 
     let mut l_infty_err_list = vec![];
     let mut l2_err_list = vec![];
 
     for _ in 0..num_repeat {
-        let msg = rng.gen_range(0..modulus_sup) as Scalar;
+        let msg = rng.random_range(0..modulus_sup) as Scalar;
         let pt = Plaintext(msg << log_scale);
 
         let input = allocate_and_encrypt_new_lwe_ciphertext(

@@ -14,13 +14,13 @@ fn main() {
     let modulus_sup = 1u64 << modulus_bit;
     let log_delta = 64 - modulus_bit;
 
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let poly_torus = Polynomial::from_container((0..polynomial_size.0).map(|_| {
         // rng.gen_range(0..=(u64::MAX))
-        rng.gen_range(0..=(u32::MAX as u64))
+        rng.random_range(0..=(u32::MAX as u64))
     }).collect::<Vec<u64>>());
     let poly_integer = Polynomial::from_container((0..polynomial_size.0).map(|_| {
-        (rng.gen_range(0..modulus_sup) - modulus_sup/2) as u64
+        (rng.random_range(0..modulus_sup) - modulus_sup/2) as u64
     }).collect::<Vec<u64>>());
 
     // Warm-up
