@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use refined_tfhe_lhe::{glwe_ciphertext_monic_monomial_div_assign, keygen_pbs, int_lhe_instance::INT_LHE_BASE_16};
+use refined_tfhe_lhe::{get_val_and_abs_err, glwe_ciphertext_monic_monomial_div_assign, int_lhe_instance::INT_LHE_BASE_16, keygen_pbs};
 use rand::Rng;
 use tfhe::core_crypto::{
     prelude::*,
@@ -135,7 +135,10 @@ fn lut_8_to_4() {
     let mut lwe_out = LweCiphertext::new(0u64, lwe_secret_key.lwe_dimension().to_lwe_size(), ciphertext_modulus);
     extract_lwe_sample_from_glwe_ciphertext(&accumulator, &mut lwe_out, MonomialDegree(0));
     let time = now.elapsed();
-    println!("8-to-4 LUT Eval: {} ms", time.as_micros() as f64 / 1000f64);
+
+    let correct_val = lut[msg] as u64;
+    let (val, _) = get_val_and_abs_err(&lwe_secret_key, &lwe_out, correct_val, delta);
+    println!("8-to-4 LUT Eval: {} ms | correct_val: {correct_val}, decrypted_val: {val}", time.as_micros() as f64 / 1000f64);
 }
 
 fn lut_16_to_4() {
@@ -274,7 +277,10 @@ fn lut_16_to_4() {
     let now = Instant::now();
     vertical_packing(modified_lut_list.as_view(), lwe_out.as_mut_view(), fourier_ggsw_list.as_view(), fft, stack);
     let time_eval = now.elapsed();
-    println!("16-to-4 LUT Eval: {} as ms", time_eval.as_micros() as f64 / 1000f64);
+
+    let correct_val = lut[lhs + (rhs << MESSAGE_SIZE)] as u64;
+    let (val, _) = get_val_and_abs_err(&lwe_secret_key, &lwe_out, correct_val, delta);
+    println!("16-to-4 LUT Eval: {} as ms | correct_val: {correct_val}, decrypted_val: {val}", time_eval.as_micros() as f64 / 1000f64);
 }
 
 
