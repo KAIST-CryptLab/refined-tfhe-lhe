@@ -207,7 +207,7 @@ pub fn polynomial_mul_by_fft_scratch(
 }
 
 // From tfhe::core_crypto::fft64::crypto::ggsw
-#[cfg_attr(__profiling, inline(never))]
+#[inline(never)]
 pub(crate) fn update_with_fmadd(
     output_fft_buffer: &mut [c64],
     lhs_polynomial_list: &[c64],

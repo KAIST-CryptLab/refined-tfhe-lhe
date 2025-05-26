@@ -174,10 +174,10 @@ B_auto: 2^{}, l_auto: {}, fft_auto: {:?}, B_ss: 2^{}, l_ss: {}, B_cbs: 2^{}, l_c
         let large_lwe_size = lwe_sk.lwe_dimension().to_lwe_size();
 
         // ======== Plain ========
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut key = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..BLOCKSIZE_IN_BYTE {
-            key[i] = rng.gen_range(0..=u8::MAX);
+            key[i] = rng.random_range(0..=u8::MAX);
         }
 
         let aes = Aes128Ref::new(&key);
@@ -185,7 +185,7 @@ B_auto: 2^{}, l_auto: {}, fft_auto: {:?}, B_ss: 2^{}, l_ss: {}, B_cbs: 2^{}, l_c
 
         let mut message = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..16 {
-            message[i] = rng.gen_range(0..=255);
+            message[i] = rng.random_range(0..=255);
         }
 
         // ======== HE ========

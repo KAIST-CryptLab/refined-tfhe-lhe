@@ -95,10 +95,10 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
         );
 
         // ======== Plain ========
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut key = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..BLOCKSIZE_IN_BYTE {
-            key[i] = rng.gen_range(0..=u8::MAX);
+            key[i] = rng.random_range(0..=u8::MAX);
         }
 
         let aes = Aes128Ref::new(&key);
@@ -106,7 +106,7 @@ fn criterion_benchmark_aes(c: &mut Criterion) {
 
         let mut message = [0u8; BLOCKSIZE_IN_BYTE];
         for i in 0..16 {
-            message[i] = rng.gen_range(0..=255);
+            message[i] = rng.random_range(0..=255);
         }
         let correct_output = byte_array_to_mat(aes.encrypt_block(message));
 

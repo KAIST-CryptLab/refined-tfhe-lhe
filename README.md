@@ -3,10 +3,6 @@ This is an implementation of '[Refined TFHE Leveled Homomorphic Evaluation and I
 
 ## Contents
 We implement:
-- tests for
-  - several keyswitching methods and conversion methods
-  - sampling output errors
-  - AES reference implementation and TFHE evaluation
 - benchmarks for
   - FFT-based circuit bootstrapping (Sec. 3.2)
     - [bench_bitwise_cbs.rs](benches/bench_bitwise_cbs.rs)
@@ -19,7 +15,6 @@ We implement:
 - [error analysis](error_analysis) for the parameters used in the paper
 
 ## How to Use
-- tests: `cargo test --release --test 'test_name'`
 - bench: `cargo bench --bench 'benchmark_name'`
   - Current sample size is set to 1000 (except AES benchmark). It can be changed by modifying `config = Criterion::default().sample_size(1000);`
   - To use AVX512: `cargo +nightly bench --bench 'benchamrk_name' --features=nightly-avx512`
